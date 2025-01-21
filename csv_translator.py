@@ -4,7 +4,7 @@ from fuzzywuzzy import fuzz
 
 mids = {}
 
-fp = "example_data.csv"
+fp = "my_sdvx_scores.csv"
 
 with open("title_to_mid.json", 'r', encoding="utf_8_sig") as file:
     mids = json.load(file)
@@ -42,3 +42,8 @@ print(fails)
 print("\n\n")
 print(f"--- TRULY FAILED: {len(true_fails)} ---")
 print(true_fails)
+
+#sidenote: https://discord.com/channels/667043164434989061/667066735253520401/1239409904796565594
+# "currently almost all EG songs are set to hidden in music db" what is an eg song? i think this is why it doesn't appear - i followed up
+
+#sidenote - directly adding to the savegame file seems to be rejecting
