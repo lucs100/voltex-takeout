@@ -2,7 +2,7 @@ import json
 
 data = {}
 
-with open("music_db.json", 'r', encoding="utf_8_sig") as file:
+with open("data/music_db.json", 'r', encoding="utf_8_sig") as file:
     data = json.load(file)
 
 mid_to_title = {}
@@ -14,7 +14,7 @@ for song in data["mdb"]["music"]:
     mid_to_title[id] = title
     title_to_mid[title] = id
 
-with open("mid_to_title.json", 'w', encoding="utf_8_sig") as file:
+with open("data/mid_to_title.json", 'w', encoding="utf_8_sig") as file:
     json.dump(mid_to_title, file, indent=2, ensure_ascii=False)
-with open("title_to_mid.json", 'w', encoding="utf_8_sig") as file:
+with open("data/title_to_mid.json", 'w', encoding="utf_8_sig") as file:
     json.dump(title_to_mid, file, indent=2, ensure_ascii=False)

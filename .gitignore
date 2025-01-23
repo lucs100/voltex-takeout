@@ -174,4 +174,4 @@ cython_debug/
 .pypirc
 
 # Custom
-*.csv
+/personal_data
