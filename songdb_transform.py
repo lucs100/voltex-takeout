@@ -2,7 +2,7 @@ import json
 
 data = {}
 
-with open("data/music_db.json", 'r', encoding="utf_8_sig") as file:
+with open("data/canonical_music_db.json", 'r', encoding="utf_8_sig") as file:
     data = json.load(file)
 
 mid_to_title = {}
