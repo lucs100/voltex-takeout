@@ -50,11 +50,12 @@ def loadScores(source=FP_IN) -> pd.DataFrame:
     """
     return pd.read_csv(source, encoding="utf_8_sig")
 
-def saveDF(df, target=FP_OUT) -> None:
+def saveDF(df: pd.DataFrame, target=FP_OUT) -> None:
     """
     Saves a DataFrame to a SDVX data file (.csv). 
     df.to_csv(FP_OUT, index=False, quotechar="`")
     """
+    df.to_csv(target, index=False)
 
 if __name__ == "__main__":
     USER_ID = "ABCDEF0123456789"
@@ -93,8 +94,8 @@ if __name__ == "__main__":
         data.append(key)
         # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
     
-    with open("edited_personal_data/db_dump.json", "w") as file:
-        json.dump({"data": data}, file, indent=2)
+    with open("edited_personal_data/db_dump.db", "w") as file:
+        file.write("\n".join([str(line) for line in data]))
 
 ## visual diagnostics
 # mostly outdated, still works
