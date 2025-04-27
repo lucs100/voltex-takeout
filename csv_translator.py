@@ -1,6 +1,5 @@
 import csv, json
 import pandas as pd
-from enum import Enum
 from fuzzywuzzy import process
 from fuzzywuzzy import fuzz
 
@@ -30,21 +29,6 @@ def getTitle(title) -> int:
         except TypeError: #no sufficient match
             return -1
 
-def append_mIDs_file(source=FP_IN, target=FP_OUT, overwrite=False) -> None:
-    """
-    Adds a column to a SDVX data file (.csv) with the mID of each song.
-    Works directly with files. Will not overwrite unless `overwrite` is enabled.
-    """
-    if source == target and not overwrite:
-        raise Exception("Cannot overwrite file.") #TODO: custom error class?
-    
-    df = pd.read_csv(source, encoding="utf_8_sig")
-    dfTitles = df.iloc[:, 0]
-    matching_mIDs = dfTitles.map(getTitle)
-    df.insert(1, "mID", matching_mIDs)
-    df.to_csv(target)
-
-
 def append_mIDs(df: pd.DataFrame) -> pd.DataFrame:
     """
     Adds a column to a SDVX data file (.csv) with the mID of each song.
@@ -56,7 +40,24 @@ def append_mIDs(df: pd.DataFrame) -> pd.DataFrame:
 
 def getUnknownSongs(df: pd.DataFrame) -> list[str]:
     songIsUnknown = df["mID"] == -1
-    return [x[0] for x in df.loc[songIsUnknown, ['title']].values] 
+    return [x[0] for x in df.loc[songIsUnknown, ['title']].values]
+
+def loadScores(source=FP_IN) -> pd.DataFrame:
+    """
+    Loads a SDVX data file (.csv) into a DataFrame.
+    """
+    return pd.read_csv(source, encoding="utf_8_sig")
+
+def saveDF(df, target=FP_OUT) -> None:
+    """
+    Saves a DataFrame to a SDVX data file (.csv). 
+    df.to_csv(FP_OUT, index=False, quotechar="`")
+    """
+
+if __name__ == "__main__":
+    df = loadScores()
+    df = append_mIDs(df)
+    saveDF(df)
 
 ## visual diagnostics
 # mostly outdated, still works
