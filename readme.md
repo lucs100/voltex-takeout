@@ -20,4 +20,4 @@ I've fixed any issues using a translation table, but my play data isn't comprehe
 ### Acknowledgements
 * [music_db.json](data/music_db.json) from [sdvx@aspyxhia](https://github.com/asphyxia-core/plugins)
 * [songdata.json](data/songdata.json) pulled from [zetaraku's arcade-songs page](https://arcade-songs.zetaraku.dev/sdvx/songs/) (i was too lazy to use their [script](https://github.com/zetaraku/arcade-songs-fetch))
-* translation table in [songdb_transform.py](data/songdb_transform.py) from @norikawa's [issue post](https://github.com/22vv0/asphyxia_plugins/issues/14) and @22vv0's [base translation table](https://github.com/22vv0/asphyxia_plugins/blob/kfc/webui/asset/js/songslist.js#L48)
+* translation table in [songdb_transform.py](/songdb_transform.py) from @norikawa's [issue post](https://github.com/22vv0/asphyxia_plugins/issues/14) and @22vv0's [base translation table](https://github.com/22vv0/asphyxia_plugins/blob/kfc/webui/asset/js/songslist.js#L48)
