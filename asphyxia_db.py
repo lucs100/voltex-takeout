@@ -50,7 +50,7 @@ DIFFICULTY = {
 #   "buttonRate": 9, #??? seems to be the "performance" %, rounded and out of 10
 #   "longRate": 9, #""
 #   "volRate": 1, #""
-#   "__s": "plugins_profile", #always "music"
+#   "__s": "plugins_profile", #always "plugins_profile"
 #   "__refid": "A59A6D749B842E3B", #The profile ID, not sure where this comes from but it's constant
 #   "_id": "KBfNQaMl42soxhtH", #Random ID - 16 alphanumeric characters
 #   "createdAt": {

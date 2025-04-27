@@ -1,5 +1,7 @@
 import csv, json
 import pandas as pd
+import asphyxia_db as db
+from datetime import datetime
 from fuzzywuzzy import process
 from fuzzywuzzy import fuzz
 
@@ -55,9 +57,44 @@ def saveDF(df, target=FP_OUT) -> None:
     """
 
 if __name__ == "__main__":
+    USER_ID = "ABCDEF0123456789"
+
     df = loadScores()
     df = append_mIDs(df)
     saveDF(df)
+
+    data = []
+    for idx, row in df.iterrows():
+        if row["mID"] is None:
+            print(f"Warning: Couldn't find music ID for {row['title']}. Skipping.")
+            continue
+        insertTime = int(datetime.now().timestamp())
+        key = {
+            "collection": "music",
+            "mid": row["mID"], #Music ID
+            "type": db.DIFFICULTY[row["難易度"]],
+            "score": row["ハイスコア"], #High Score
+            "exscore": row["EXスコア"], #EX Score
+            "clear": db.CLEAR_LAMP[row["クリアランク"]], #Clear Rank 
+            "grade": db.GRADE[row["スコアグレード"]], #Score Grade
+            "buttonRate": 10, #idk, there is no documentation on this
+            "longRate": 10, #idk
+            "volRate": 10, #idk
+            "__s": "plugins_profile",
+            "__refid": USER_ID,
+            "_id": db.newID(),
+            "createdAt": {
+                "$$date": insertTime #First play of the song
+            },
+            "updatedAt": {
+                "$$date": insertTime #Time of record insert
+            }
+        }
+        data.append(key)
+        # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
+    
+    with open("edited_personal_data/db_dump.json", "w") as file:
+        json.dump({"data": data}, file, indent=2)
 
 ## visual diagnostics
 # mostly outdated, still works
