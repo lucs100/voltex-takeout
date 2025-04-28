@@ -1,5 +1,6 @@
 from string import ascii_letters, digits
 from random import choices
+import json
 
 ID_CHARS = ascii_letters + digits
 def newID():
@@ -37,6 +38,24 @@ DIFFICULTY = {
     "VIVID": 3,
     "EXCEED": 3
 }
+
+def readKeys(fp: str) -> list[dict]:
+    """
+    Loads an Asphyxia CORE SDVX database to a Python object.
+    Returns a list of entries; each entry is a dict.
+    """
+    keys = []
+    with open(fp, 'r') as file:
+        for line in file:
+            keys.append(json.loads(line))
+    return keys
+
+def getProfiles(db: list[dict]) -> dict[str: str]:
+    """
+    Returns a dict of all profiles in a DB.
+    Keys are __refid (internal ID), values are profile names.
+    """
+    return {x["__refid"]: x["name"] for x in db if x.get("collection") == "profile"}
 
 # Song schema: 
 # {
