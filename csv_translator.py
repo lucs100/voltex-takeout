@@ -22,7 +22,7 @@ def getTitle(title) -> int:
     If CONFIDENT_MODE is True, attempts to fuzzy match.
     """
     if title in MIDS.keys(): #exact match
-        return MIDS[title]  
+        return int(MIDS[title])  
     if CONFIDENT_MODE:
         try:
             (match, score) = process.extractOne(title, all_titles, 
@@ -38,6 +38,7 @@ def append_mIDs(df: pd.DataFrame) -> pd.DataFrame:
     dfTitles = df.iloc[:, 0]
     matching_mIDs = dfTitles.map(getTitle)
     df.insert(1, "mID", matching_mIDs)
+    df.sort_values("mID", inplace=True)
     return df
 
 def getUnknownSongs(df: pd.DataFrame) -> list[str]:
@@ -58,7 +59,7 @@ def saveDF(df: pd.DataFrame, target=FP_OUT) -> None:
     df.to_csv(target, index=False)
 
 if __name__ == "__main__":
-    USER_ID = "ABCDEF0123456789"
+    USER_ID = "A59A6D7492842E3B"
 
     df = loadScores()
     df = append_mIDs(df)
@@ -72,7 +73,7 @@ if __name__ == "__main__":
         insertTime = int(datetime.now().timestamp())
         key = {
             "collection": "music",
-            "mid": row["mID"], #Music ID
+            "mid": int(row["mID"]), #Music ID
             "type": db.DIFFICULTY[row["難易度"]],
             "score": row["ハイスコア"], #High Score
             "exscore": row["EXスコア"], #EX Score
@@ -94,8 +95,7 @@ if __name__ == "__main__":
         data.append(key)
         # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
     
-    with open("edited_personal_data/db_dump.db", "w") as file:
-        file.write("\n".join([str(line) for line in data]))
+    db.writeKeys("personal_data\sdvx@asphyxia.db", data)
 
 ## visual diagnostics
 # mostly outdated, still works
