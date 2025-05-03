@@ -1,6 +1,9 @@
 from string import ascii_letters, digits
 from random import choices
 import json
+import shutil
+from pathlib import Path
+from datetime import datetime
 
 ID_CHARS = ascii_letters + digits
 def newID():
@@ -47,7 +50,10 @@ def readKeys(fp: str) -> list[dict]:
     keys = []
     with open(fp, 'r') as file:
         for line in file:
-            keys.append(json.loads(line))
+            try:
+                keys.append(json.loads(line))
+            except:
+                raise json.JSONDecodeError("Failed to decode line: " + line)
     return keys
 
 def getProfiles(db: list[dict]) -> dict[str: str]:
@@ -56,6 +62,33 @@ def getProfiles(db: list[dict]) -> dict[str: str]:
     Keys are __refid (internal ID), values are profile names.
     """
     return {x["__refid"]: x["name"] for x in db if x.get("collection") == "profile"}
+
+def writeKeys(fp: str, keys: list[dict], backup_fp: str=None) -> None:
+    """
+    Writes a list of keys to an Asphyxia CORE SDVX database.
+    Note this function simply appends a list of keys to a file.
+    A backup will ALWAYS be created.
+    """
+    # Backup the file
+    if backup_fp is None:
+        backup_fp: Path = Path(fp).parent / f"voltex_takeout_backup_{int(datetime.now().timestamp())}.db"
+    else:
+        backup_fp = Path(backup_fp)
+    assert not backup_fp.exists()
+    shutil.copy(fp, backup_fp)
+
+    # Convert the keys into strings, in the format Asphyxia wants
+    entries = []
+    for key in keys:
+        entry = str(key)
+        entry = entry.replace(" ", "") #remove spaces
+        entry = entry.replace("'", '"') #use double quotes instead of single
+        entries.append(entry)
+        # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
+    
+    with open(fp, 'a') as file:
+        file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
+        file.write("\n".join(entries))
 
 # Song schema: 
 # {
