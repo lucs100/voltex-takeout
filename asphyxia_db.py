@@ -20,9 +20,14 @@ class SaveData:
         self.fp: Path = Path(fp) #safe for both strings and paths
         self.keys: list[dict] = []
         with open(self.fp, 'r') as file:
-            for line in file:
+            for idx, line in enumerate(file):
                 try:
-                    self.keys.append(json.loads(line))
+                    line = line.strip()
+                    print(f"Line #{idx}: {str(line)}")
+                    if line is None or line == "":
+                        print("Line is None!!")
+                        continue
+                    self.keys.append(json.loads(line.strip()))
                 except:
                     raise json.JSONDecodeError("Failed to decode line: " + line)
 
@@ -32,6 +37,12 @@ class SaveData:
         Keys are __refid (internal ID), values are profile names.
         """
         return {x["__refid"]: x["name"] for x in self.keys if x.get("collection") == "profile"}
+
+    def getPlayData(self) -> list[dict]:
+        """
+        Returns a list of all plays in a DB.
+        """
+        return [x for x in self.keys if x.get("collection") == "music"]
 
 GRADE = {
     "D": 1,
@@ -99,10 +110,22 @@ def writeKeys(source_fp: str|Path, keys: list[dict], backup_fp: str|Path|None = 
         file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
         file.write("\n".join(entries))
 
-def getSaveDataFile(fp: Path, dbName: str = "sdvx@asphyxia.db") -> Path:
-    saveDataPath = fp / dbName
-    assert saveDataPath.exists(), f"{dbName} was not found in {fp}."
-    return saveDataPath
+def getSaveDataPath(fp: str|Path, dbName: str = "sdvx@asphyxia.db") -> Path|None:
+    """
+    Checks if a savedata file exists in the given path.
+
+    Args:
+        fp: The folder to check in.
+        dbName: The name of the file to check for.
+    
+    Returns:
+        saveDataPath: The path to the file if found, otherwise None. 
+    """
+    saveDataPath = Path(fp) / dbName
+    if saveDataPath.exists():
+        return saveDataPath
+    else: 
+        return None
 
 # Song schema: 
 # {
