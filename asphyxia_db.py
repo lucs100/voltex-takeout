@@ -9,6 +9,30 @@ ID_CHARS = ascii_letters + digits
 def newID():
     return "".join(choices(ID_CHARS, k=16))
 
+class SaveData:
+    def __init__(self, fp: str|Path) -> bool:
+        """
+        Loads an Asphyxia CORE SDVX database to a SaveData object.
+        
+        Args:
+            fp: The filepath of the database. Generally is .../SOUND VOLTEX EXCEED GEAR/contents/savedata/sdvx@asphyxia.db.
+        """
+        self.fp: Path = Path(fp) #safe for both strings and paths
+        self.keys: list[dict] = []
+        with open(self.fp, 'r') as file:
+            for line in file:
+                try:
+                    self.keys.append(json.loads(line))
+                except:
+                    raise json.JSONDecodeError("Failed to decode line: " + line)
+
+    def getProfiles(self) -> dict[str: str]:
+        """
+        Returns a dict of all profiles in a DB.
+        Keys are __refid (internal ID), values are profile names.
+        """
+        return {x["__refid"]: x["name"] for x in self.keys if x.get("collection") == "profile"}
+
 GRADE = {
     "D": 1,
     "C": 2,
@@ -42,40 +66,25 @@ DIFFICULTY = {
     "EXCEED": 3
 }
 
-def readKeys(fp: str) -> list[dict]:
-    """
-    Loads an Asphyxia CORE SDVX database to a Python object.
-    Returns a list of entries; each entry is a dict.
-    """
-    keys = []
-    with open(fp, 'r') as file:
-        for line in file:
-            try:
-                keys.append(json.loads(line))
-            except:
-                raise json.JSONDecodeError("Failed to decode line: " + line)
-    return keys
-
-def getProfiles(db: list[dict]) -> dict[str: str]:
-    """
-    Returns a dict of all profiles in a DB.
-    Keys are __refid (internal ID), values are profile names.
-    """
-    return {x["__refid"]: x["name"] for x in db if x.get("collection") == "profile"}
-
-def writeKeys(fp: str, keys: list[dict], backup_fp: str=None) -> None:
+def writeKeys(source_fp: str|Path, keys: list[dict], backup_fp: str|Path|None = None) -> None:
     """
     Writes a list of keys to an Asphyxia CORE SDVX database.
     Note this function simply appends a list of keys to a file.
     A backup will ALWAYS be created.
+
+    Args:
+        source_fp: Where to load the DB from.
+        keys: The list of play data keys to append.
+        backup_fp: Where to copy the DB file to before modifying it. Defaults to a timestamped sibling file.
     """
     # Backup the file
     if backup_fp is None:
-        backup_fp: Path = Path(fp).parent / f"voltex_takeout_backup_{int(datetime.now().timestamp())}.db"
+        backup_fp: Path = Path(source_fp).parent / f"voltex_takeout_backup_{int(datetime.now().timestamp())}.db"
     else:
         backup_fp = Path(backup_fp)
-    assert not backup_fp.exists()
-    shutil.copy(fp, backup_fp)
+    assert not backup_fp.exists(), "Backup already exists!"
+    shutil.copy(source_fp, backup_fp)
+    assert backup_fp.exists(), "Failed to copy a backup!"
 
     # Convert the keys into strings, in the format Asphyxia wants
     entries = []
@@ -86,9 +95,14 @@ def writeKeys(fp: str, keys: list[dict], backup_fp: str=None) -> None:
         entries.append(entry)
         # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
     
-    with open(fp, 'a') as file:
+    with open(source_fp, 'a') as file:
         file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
         file.write("\n".join(entries))
+
+def getSaveDataFile(fp: Path, dbName: str = "sdvx@asphyxia.db") -> Path:
+    saveDataPath = fp / dbName
+    assert saveDataPath.exists(), f"{dbName} was not found in {fp}."
+    return saveDataPath
 
 # Song schema: 
 # {
