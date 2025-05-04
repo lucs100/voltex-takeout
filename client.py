@@ -1,13 +1,12 @@
 #from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QTabWidget, QGroupBox, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox, QCheckBox, QSizePolicy, QFrame, QApplication
 from PyQt6.QtWidgets import *
 from PyQt6.QtGui import QIcon
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
-import os, pathlib
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, Qt
 import asphyxia_db as engine
 from subprocess import CalledProcessError
 
 #to get cmd line args
-import sys
+import sys, os
 
 #Based on https://github.com/lucs100/shtickerpack/blob/main/src/client.py
 #TODO: there is a TON of hanging/unused code here thanks to this. it's fine though
@@ -36,6 +35,9 @@ DB_WRITE_HELP_STR = ("Finally we need to write to the database. We'll take a bac
 APP_NAME = "VoltexTakeout"
 ORG_NAME = "lucs100"
 APP_VER = "0.1"
+
+#Globals
+saveData: engine.SaveData|None = None #initialize to none, will be modified later
 
 #create a custom subclassed window
 class VoltexTakeoutMainWindow(QMainWindow):
@@ -103,6 +105,7 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.layout.addWidget(self.tabs)
         self.mainContainer.setLayout(self.layout)
         self.setCentralWidget(self.mainContainer)
+
         self.show()
 
 class VoltexTakeoutTitledPanel(QGroupBox):
@@ -125,130 +128,105 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
 
         self.parentWindow = parentWindow
         self.identifier = identifier
-        # self.DEFAULT_INPUT_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\default"
-        # self.DEFAULT_OUTPUT_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\vanilla"
 
-        self.inputDirHint = QLabel("SDVX savedata location:")
-        self.inputDirHint.setFixedWidth(150)
-        self.inputDirPath = QLineEdit()
-        self.inputBrowseButton = QPushButton("Select input folder...")
-        self.inputBrowseButton.clicked.connect(self.openInputFileDialog)
-        # self.defaultInputButton = QPushButton("Use default input folder")
-        # self.defaultInputButton.clicked.connect(self.setDefaultInputDir)
+        self.dbInputDirHint = QLabel("SDVX savedata location:")
+        self.dbInputDirHint.setFixedWidth(150)
+        self.dbInputDirPath = QLabel("(None)")
 
-        self.outputDirHint = QLabel("Place output folders in:")
-        self.outputDirHint.setFixedWidth(150)
-        self.outputDirPath = QLineEdit()
-        self.outputBrowseButton = QPushButton("Select output folder...")
-        self.outputBrowseButton.clicked.connect(self.openOutputFileDialog)
-        # self.defaultOutputButton = QPushButton("Use vanilla output folder")
-        # self.defaultOutputButton.clicked.connect(self.setDefaultOutputDir)
+        self.dbInputBrowseButton = QPushButton("Select file...")
+        self.dbInputBrowseButton.setFixedWidth(150)
+        self.dbInputBrowseButton.clicked.connect(lambda:self.openLoadDB(self.dbInputBrowseButton))
 
-        self.defaultHybridButton = QPushButton("Autoset output")
-        self.defaultHybridButton.clicked.connect(self.setDefaultInputDir)
-        self.defaultHybridButton.clicked.connect(self.setDefaultOutputDir)
+        self.dbLoadStatusLabel = QLabel("Database status:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        # self.dbLoadStatusLabel.setFixedWidth(200)
+        self.dbLoadStatusValue = QLabel("Not yet loaded")
+
+        self.statsKeysLabel = QLabel("Keys:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        self.statsUsersLabel = QLabel("Users:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        self.statsPlaysLabel = QLabel("Plays:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        # self.dbLoadStatusLabel.setFixedWidth(200)
+        self.statsKeysValue = QLabel("--")
+        self.statsUsersValue = QLabel("--")
+        self.statsPlaysValue = QLabel("--")
         
-        self.unpackButton = QPushButton("Go!")
-        self.unpackButton.setFixedSize(189, 121)
-        self.unpackButton.clicked.connect(lambda:self.unpackTargetDir(self.unpackButton))
-        #print(f"Unpack - H: {self.unpackButton.height()}, W: {self.unpackButton.width()}")
 
-        self.addWidget(self.inputDirHint, 0, 0)
-        self.addWidget(self.outputDirHint, 1, 0)
-        self.addWidget(self.inputDirPath, 0, 1, 1, 2)
-        self.addWidget(self.outputDirPath, 1, 1, 1, 2)
+        self.addWidget(self.dbInputDirHint, 0, 0)
+        self.addWidget(self.dbInputDirPath, 0, 1)
+        self.addWidget(self.dbInputBrowseButton, 0, 3)
 
-        self.addWidget(self.defaultHybridButton, 2, 0, 1, 4)
-        # self.addWidget(self.defaultInputButton, 3, 0, 1, 2)
-        # self.addWidget(self.defaultOutputButton, 3, 2, 1, 2)
-        
-        self.addWidget(self.inputBrowseButton, 0, 3)
-        self.addWidget(self.outputBrowseButton, 1, 3)
+        self.addWidget(self.dbLoadStatusLabel, 1, 0, 3, 1)
+        self.addWidget(self.dbLoadStatusValue, 1, 1, 3, 1)
 
-        self.addWidget(self.unpackButton, 0, 4, 3, 1)
-        self.unpackButton.setMaximumHeight(999)
+        self.addWidget(self.statsKeysLabel, 1, 2)
+        self.addWidget(self.statsKeysValue, 1, 3)
+        self.addWidget(self.statsUsersLabel, 2, 2)
+        self.addWidget(self.statsUsersValue, 2, 3)
+        self.addWidget(self.statsPlaysLabel, 3, 2)
+        self.addWidget(self.statsPlaysValue, 3, 3)
 
         self.setContentsMargins(8, 16, 8, 16)
     
-    def openInputFileDialog(self):
-        dir = QFileDialog.getExistingDirectory(
+    def openLoadDB(self, button: QPushButton):
+        fp, fileFilter = QFileDialog.getOpenFileName(
             None,
-            caption = "Select input phase file folder...",
-            directory = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\default"
+            caption = "Select savedata file...",
+            directory = "C:",
+            filter = "Asphyxia CORE Database (*.db);;All Files (*)"
         )
-        if dir:
-            path = pathlib.Path(dir)
-            self.inputDirPath.setText(str(path))
-            print(f"Selected {path} in tray {self.identifier}")
-
-    def openOutputFileDialog(self):
-        dir = QFileDialog.getExistingDirectory(
-            None,
-            caption = "Select output phase file folder...",
-            directory = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources"
-        )
-        if dir:
-            path = pathlib.Path(dir)
-            self.outputDirPath.setText(str(path))
-            print(f"Selected {path} in tray {self.identifier}")
-
-    def setDefaultInputDir(self):
-        self.inputDirPath.setText(self.DEFAULT_INPUT_DIR)
-
-    def setDefaultOutputDir(self):
-        self.outputDirPath.setText(self.DEFAULT_OUTPUT_DIR)
-    
-    def handlePathErrors(self, inputPath: str, outputPath: str) -> bool:
-        if inputPath == "":
-            msg = QMessageBox.warning(None, "No input!", "Select an input folder first.")
-            return False
-        if outputPath == "":
-            msg = QMessageBox.warning(None, "No outut!", "Select an output folder first.")
-            return False
-        if inputPath == outputPath:
-            msg = QMessageBox.warning(None, "Warning!", "The input and output folders can't be the same.")
-            return False
-        return True
-    
-    def handleUnpackResult(self, result: "ThreadResult"):
-        msg = result.messageType(None, result.title, result.text)
-    
-    def unpackTargetDir(self, button: QPushButton):
-        sourceDir = self.inputDirPath.text()
-        destinationDir = self.outputDirPath.text()
-
-        if not self.handlePathErrors(sourceDir, destinationDir):
-            return False
-        
-        if not os.path.exists(destinationDir):
-            os.mkdir(destinationDir)
-
-        if not engine.checkOutputDirectoryValid(destinationDir):
-            msg = QMessageBox.warning(None, "Alert!", 
-                "The output folder doesn't exist or already has phase folders inside!")
+        print(f"File: {fp}")
+        if fp == '':
             return
-        
-        #checks ok, we can proceed
-        button.setText("Unpacking... just a sec!")
-        print("Beginning unpack...")
-        button.setEnabled(False)
 
-        self.thread = QThread()
-        self.worker = UnpackWorker(sourceDir=sourceDir, destinationDir=destinationDir)
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.success.connect(self.thread.quit)
-        self.thread.finished.connect(self.worker.deleteLater)
-        self.worker.result.connect(self.handleUnpackResult)
-        self.thread.start()
+        # Checks ok, we can proceed
+        oldText = button.text()
+        button.setText("Loading... just a sec!")
+        print("Beginning load...")
+        button.setEnabled(False)
         
-        #setup triggers for when thread is done
-        self.thread.finished.connect(
-            lambda: button.setEnabled(True)
-        )
-        self.thread.finished.connect(
-            lambda: button.setText("Go!")
-        )
+        try:
+            global saveData
+            saveData = engine.SaveData(fp)
+        except Exception as e:
+            msg = QMessageBox.critical(None, "Error!", 
+                                      f"<b>Data load failed:</b><br>{e}")
+            return False
+        assert saveData is not None, "No save data was returned."
+        print(saveData)
+
+        # Set button and text states on success (wow this sucks)
+        self.dbLoadStatusValue.setText("Loaded!")
+        self.dbLoadStatusValue.setStyleSheet("color: green")
+        self.statsKeysValue.setText(str(len(saveData.keys)))
+        self.statsUsersValue.setText(str(len(saveData.getProfiles())))
+        self.statsPlaysValue.setText(str(len(saveData.getPlayData())))
+
+        self.parent().parent().parent().parent().setTabEnabled(1, True)
+        self.dbInputDirPath.setText(fp)
+        self.dbInputDirPath.setText(str(fp))
+        button.setEnabled(True)
+        button.setText(oldText)
+    
+    def getSaveData(self, button: QPushButton):
+        return
+
+        # Old thread-based code, probably not neccesary
+
+        # self.thread = QThread()
+        # self.worker = UnpackWorker(sourceDir=sourceDir, destinationDir=destinationDir)
+        # self.worker.moveToThread(self.thread)
+        # self.thread.started.connect(self.worker.run)
+        # self.worker.success.connect(self.thread.quit)
+        # self.thread.finished.connect(self.worker.deleteLater)
+        # self.worker.result.connect(self.handleUnpackResult)
+        # self.thread.start()
+        
+        # #setup triggers for when thread is done
+        # self.thread.finished.connect(
+        #     lambda: button.setEnabled(True)
+        # )
+        # self.thread.finished.connect(
+        #     lambda: button.setText("Go!")
+        # )
         
 class VoltexTakeoutCSVLoadTray(QGridLayout):
     def __init__(self, parentWindow: QMainWindow, identifier: str = "CSVLoadTray"):
@@ -256,62 +234,28 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
 
         self.parentWindow = parentWindow
         self.identifier = identifier
-        self.DEFAULT_LOOSE_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\workspace\\myProject" #TODO: really??
-        self.DEFAULT_OUTPUT_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\contentpacks"
-
-        self.inputDirHint = QLabel("Custom asset folder:")
-        self.inputDirHint.setFixedWidth(150)
-        self.inputDirPath = QLineEdit()
-        self.inputBrowseButton = QPushButton("Select custom asset folder...")
-        self.inputBrowseButton.clicked.connect(self.openInputFileDialog)
-        self.defaultInputButton = QPushButton("Use default input folder")
-        self.defaultInputButton.clicked.connect(self.setDefaultInputDir)
-        self.defaultInputButton.setDisabled(True)
-
-        self.modNameHint = QLabel("Output file name:")
-        self.modNameHint.setFixedWidth(150)
-        self.modNameEntry = QLineEdit()
-        self.autoNameModButton = QPushButton("Auto-set (Not recommended)")
-        self.autoNameModButton.clicked.connect(lambda:self.modNameEntry.setText(self.generateRandomModName()))
-
-        self.optionsSpacer = QHorizontalSpacer()
-        self.delFoldersModeBox = QCheckBox("Delete temporary folders when done")
-        self.delFoldersModeBox.clicked.connect(lambda:self.deleteModeWarning(self.delFoldersModeBox))
-        self.delFilesModeBox = QCheckBox("Delete asset files when done")
-        self.delFilesModeBox.clicked.connect(lambda:self.deleteModeWarning(self.delFilesModeBox))
-        self.moveOutputModeBox = QCheckBox("Move output to Clash resources (recommended)") #todo: warning when deselected
-        self.moveOutputModeBox.setChecked(True)
-
-        self.optionsTray = QWidget()
-        self.optionsTray.layout = QGridLayout()
-        self.optionsTray.layout.addWidget(self.optionsSpacer, 0, 0, 1, 3)
-        self.optionsTray.layout.addWidget(self.delFoldersModeBox, 1, 0)
-        self.optionsTray.layout.addWidget(self.delFilesModeBox, 1, 1)
-        self.optionsTray.layout.addWidget(self.moveOutputModeBox, 1, 2)
-        self.optionsTray.setLayout(self.optionsTray.layout)
-        self.optionsTray.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+       
+        self.csvInputDirHint = QLabel("Arcade data location:")
+        self.csvInputDirHint.setFixedWidth(150)
+        self.csvInputDirPath = QLineEdit()
+        self.csvInputBrowseButton = QPushButton("Select input folder...")
+        self.csvInputBrowseButton.clicked.connect(self.openInputFileDialog)
         
-        self.repackButton = QPushButton("Go!") #todo: implement, lol
-        self.repackButton.clicked.connect(lambda:self.repackTargetDir(self.repackButton))
-        self.repackButton.setFixedSize(189, 121)
-        #print(f"Repack - H: {self.repackButton.height()}, W: {self.repackButton.width()}")
+        self.csvLoadStatusLabel = QLabel("Arcade CSV status:")
+        self.csvLoadStatusLabel.setFixedWidth(150)
+        self.csvLoadStatusValue = QLabel("Not yet loaded")
+        
+        self.loadCSVButton = QPushButton("Load arcade data")
+        # self.unpackButton.setFixedSize(189, 121)
+        self.loadCSVButton.clicked.connect(lambda:self.getSaveData(self.loadDBButton))
 
-        self.addWidget(self.inputDirHint, 0, 0)
-        self.addWidget(self.inputDirPath, 0, 1, 1, 2) #merge these elements to line up box w unpack label?
-        self.addWidget(self.inputBrowseButton, 0, 3, 1, 1)
-
-        self.addWidget(self.modNameHint, 1, 0)
-        self.addWidget(self.modNameEntry, 1, 1, 1, 2) #merge these elements to line up box w unpack label?
-        self.addWidget(self.autoNameModButton, 1, 3, 1, 1)
-
-        # self.addWidget(self.delFilesModeBox, 3, 0, 1, 1)
-        # self.addWidget(self.delFolderModeBox, 3, 1, 1, 1)
-        # self.addWidget(self.moveOutputModeBox, 3, 2, 1, 2)
-        self.addWidget(self.optionsTray, 2, 0, 1, 4)
-
-        self.addWidget(self.repackButton, 0, 4, 3, 1)
-        self.repackButton.setMaximumHeight(999)
-        #TODO: resize to match unpack go button size
+        self.addWidget(self.csvInputDirHint, 2, 0)
+        self.addWidget(self.csvInputDirPath, 2, 1, 1, 2)
+        self.addWidget(self.csvInputBrowseButton, 2, 3)
+        
+        self.addWidget(self.loadCSVButton, 3, 0, 1, 2)
+        self.addWidget(self.csvLoadStatusLabel, 3, 2)
+        self.addWidget(self.csvLoadStatusValue, 3, 3)
         
         self.setContentsMargins(8, 16, 8, 16)
     
