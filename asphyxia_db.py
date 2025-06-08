@@ -42,9 +42,9 @@ class SaveData:
         Args:
             fp: The filepath of the database. Generally is .../SOUND VOLTEX EXCEED GEAR/contents/savedata/sdvx@asphyxia.db.
         """
-        self.fp: Path = Path(fp) #safe for both strings and paths
+        self._fp: Path = Path(fp) #safe for both strings and paths
         self.keys: list[dict] = []
-        with open(self.fp, 'r') as file:
+        with open(self._fp, 'r') as file:
             for idx, line in enumerate(file):
                 try:
                     line = line.strip()
@@ -55,6 +55,13 @@ class SaveData:
                     self.keys.append(json.loads(line.strip()))
                 except:
                     raise json.JSONDecodeError("Failed to decode line: " + line)
+
+    @property
+    def fp(self) -> Path:
+        """
+        Getter for the database filepath.
+        """
+        return self._fp
 
     def getProfiles(self) -> dict[str: str]:
         """
@@ -115,6 +122,7 @@ class ArcadeData:
         Adds a column with the mID of each song.
         ArcadeData is a wrapper class that implements some convenience methods.
         """
+        self.fp: Path = Path(fp) 
         df = pd.read_csv(Path(fp), encoding="utf_8_sig")
         # df.rename(columns=CSV_HEADERS, inplace=True) #Rename the default CSV headers
         #Append the mIDs to the dataset
@@ -124,7 +132,7 @@ class ArcadeData:
             df.drop(columns="mID", inplace=True)
         df.insert(1, "mID", matching_mIDs)
         df.sort_values("mID", inplace=True)
-        self.df = df
+        self.df: pd.DataFrame = df
     
     def generateKeys(self, user_id: str) -> list[dict]:
         """
