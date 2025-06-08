@@ -64,6 +64,8 @@ class VoltexTakeoutMainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.tabs.resize(500, 600)
+        self.tabs.currentChanged.connect(self.updateTab)
+
 
         self.tab1 = QWidget()
         self.tab2 = QWidget()
@@ -72,8 +74,8 @@ class VoltexTakeoutMainWindow(QMainWindow):
         INFO_GROUP_HEIGHT = 120
 
         # define our entire tabs
-        self.dbLoadPanel = VoltexTakeoutInfoTray(DB_LOAD_HELP_STR)
-        self.dbLoadInfoGroup = VoltexTakeoutTitledPanel(self.dbLoadPanel, "Database load instructions")
+        self.dbLoadInfoPanel = VoltexTakeoutInfoTray(DB_LOAD_HELP_STR)
+        self.dbLoadInfoGroup = VoltexTakeoutTitledPanel(self.dbLoadInfoPanel, "Database load instructions")
         self.dbLoadInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
         self.dbLoadPanel = VoltexTakeoutDBLoadTray(self)
         self.dbLoadGroup = VoltexTakeoutTitledPanel(self.dbLoadPanel, "Load database file")
@@ -83,8 +85,8 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.tab1.setLayout(self.tab1.layout)
         self.tabs.addTab(self.tab1, "Step 1 [Load database]")
 
-        self.csvLoadPanel = VoltexTakeoutInfoTray(CSV_LOAD_HELP_STR)
-        self.csvLoadInfoGroup = VoltexTakeoutTitledPanel(self.csvLoadPanel, "Arcade data load instructions")
+        self.csvLoadInfoPanel = VoltexTakeoutInfoTray(CSV_LOAD_HELP_STR)
+        self.csvLoadInfoGroup = VoltexTakeoutTitledPanel(self.csvLoadInfoPanel, "Arcade data load instructions")
         self.csvLoadInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
         self.csvLoadPanel = VoltexTakeoutCSVLoadTray(self)
         self.csvLoadGroup = VoltexTakeoutTitledPanel(self.csvLoadPanel, "Load arcade data")
@@ -94,8 +96,8 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.tab2.setLayout(self.tab2.layout)
         self.tabs.addTab(self.tab2, "Step 2 [Load arcade data]")
         
-        self.dbWritePanel = VoltexTakeoutInfoTray(DB_WRITE_HELP_STR)
-        self.dbWriteInfoGroup = VoltexTakeoutTitledPanel(self.dbWritePanel, "Database write instructions")
+        self.dbWriteInfoPanel = VoltexTakeoutInfoTray(DB_WRITE_HELP_STR)
+        self.dbWriteInfoGroup = VoltexTakeoutTitledPanel(self.dbWriteInfoPanel, "Database write instructions")
         self.dbWriteInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
         self.dbWritePanel = VoltexTakeoutDBWriteTray(self)
         self.dbWriteGroup = VoltexTakeoutTitledPanel(self.dbWritePanel, "Write to DB")
@@ -113,6 +115,16 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.setCentralWidget(self.mainContainer)
 
         self.show()
+    
+    def updateTab(self, idx):
+        """
+        Convenience function to trigger a function when a tab is loaded.
+        """
+        if idx == 2: #Tab 3
+            self.dbWritePanel.updateReadouts()
+        else:
+            pass
+
 
 class VoltexTakeoutTitledPanel(QGroupBox):
     def __init__(self, layout: QGridLayout, title: str):
@@ -381,8 +393,6 @@ class VoltexTakeoutDBWriteTray(QGridLayout):
 
         self.parentWindow = parentWindow
         self.identifier = identifier
-        # self.DEFAULT_INPUT_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\default"
-        # self.DEFAULT_OUTPUT_DIR = f"C:\\Users\\{os.getlogin()}\\AppData\\Local\\Corporate Clash\\resources\\vanilla"
 
         self.inputDirHint = QLabel("SDVX savedata location:")
         self.inputDirHint.setFixedWidth(150)
@@ -426,6 +436,23 @@ class VoltexTakeoutDBWriteTray(QGridLayout):
 
         self.setContentsMargins(8, 16, 8, 16)
     
+    def updateReadouts(self):
+        """
+        Update readouts using the SaveData global.
+        """
+        print("Connected successfully.")
+        # try:
+        #     if SaveData is None:
+        #         self.dbLoadStatusValue.setText("Not yet loaded")
+        #         #etc
+
+        # except Exception as e:
+        #     msg = QMessageBox.critical(None, "Error!", 
+        #             f"<b>Updating readouts failed:</b><br>{e}")
+        #     return False
+        # else:
+        #     return True
+
     def openInputFileDialog(self):
         dir = QFileDialog.getExistingDirectory(
             None,
