@@ -23,16 +23,37 @@ EXPORT_WEB_LINK = "https://p.eagate.573.jp/game/sdvx/vi/index.html"
 DOWNLOAD_GUIDE_LINK = "https://github.com/lucs100/voltex-takeout/blob/master/csv_guide.md"
 
 DB_LOAD_HELP_STR = ("We first need to load the database, so we can check which users exist.<br>"
-                   "It's likely stored in <b>.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</b>.")
+                    "It's likely stored in <b>.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</b>.<br>"
+                    "Your database will NOT be changed until Step 3.")
 
 CSV_LOAD_HELP_STR = ("Next we need to load your data file.<br>"
                     f"This should be the official data download from the <a href='{EXPORT_WEB_LINK}'>official site</a>.<br>"
-                    "<b>Note:</b> you need the Basic Course subscription to get this file. "
+                     "<b>Note:</b> you need the Basic Course subscription to get this file. "
                     f"A guide is provided <a href='{DOWNLOAD_GUIDE_LINK}'>here</a>.")
 
-DB_WRITE_HELP_STR = ("Finally we need to write to the database. We'll take a backup first.")
+DB_WRITE_HELP_STR = ("Finally we need to write to the database.<br>"
+                     "A backup will be made before editing your .db file.")
 
-APP_NAME = "VoltexTakeout"
+SPLASH_INITIAL_STR = ("Welcome to <b>Voltex Takeout</b>! Please read the following to ensure no data is lost.<br><br>"
+                     "Your e-amuse export file will NEVER be changed, and your Asphyxia CORE database will NOT be changed until Step 3. "
+                     "A backup will be made of your Asphyxia CORE database before importing your save, but "
+                     "you should make your own backup copy before using this program.<br><br>"
+                     "Do you have a backup or plan to make one?")
+
+SPLASH_CONFIRM_STR = ("Awesome! If something goes wrong or Asphyxia CORE can't load your save after using Voltex Takeout, "
+                     "just replace the created files with your backup file to undo the changes.<br><br>"
+                     "If you run into any problems or have any questions, please let me know on the GitHub repo's Issues page. Have fun!")
+
+SPLASH_WARNING_STR = ("<b>Voltex Takeout is a hobby project and I cannot guarantee it will work.</b><br>"
+                     "<b>If you do not make a backup, you could lose your Asphyxia CORE data!</b><br><br>"
+                     "I strongly recommend you back up your Asphyxia CORE database, which is "
+                     "located in <span style=\"background-color: #ccc\">.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</span>. "
+                     "That way, if something goes wrong or Asphyxia CORE can't read your save data, "
+                     "you can replace the new file with the backup copy to undo the changes.<br><br>"
+                     "If you accept the risk or plan to make a backup, click <b>Yes</b>.<br>"
+                     "If you do not, click <b>No</b>, and Voltex Takeout will close.")
+
+APP_NAME = "Voltex Takeout"
 ORG_NAME = "lucs100"
 APP_VER = "0.2"
 
@@ -108,12 +129,29 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.tabs.addTab(self.tab3, "Step 3 [Write to database]")
 
         # self.tabs.setTabEnabled(1, False)
-        # self.tabs.setTabEnabled(2, False)
+        self.tabs.setTabEnabled(2, False)
 
         self.layout.addWidget(self.tabs)
         self.mainContainer.setLayout(self.layout)
         self.setCentralWidget(self.mainContainer)
 
+        btn_yes = QMessageBox.StandardButton.Yes
+        btn_no = QMessageBox.StandardButton.No
+        response = QMessageBox.warning(None, "Important!", SPLASH_INITIAL_STR, btn_yes | btn_no)
+        if response == btn_yes:
+            #ugh, all this because I wanted to add silly text...
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.setWindowTitle("Ready to go!")
+            msg.setText(SPLASH_CONFIRM_STR)
+            msg.setStandardButtons(btn_yes)
+            yippee = msg.button(btn_yes)
+            yippee.setText('Yippee!')
+            msg.exec()
+        elif response == btn_no:
+            confirmation = QMessageBox.warning(None, "WARNING!", SPLASH_WARNING_STR, btn_yes | btn_no)
+            if confirmation == btn_no:
+                exit(0)
         self.show()
     
     def updateTab(self, idx):
@@ -239,7 +277,6 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
             self.statsUsersValue.setText(str(len(SaveData.getProfiles())))
             self.statsPlaysValue.setText(str(len(SaveData.getPlayData())))
 
-            self.parent().parent().parent().parent().setTabEnabled(1, True)
             # self.dbInputDirPath.setText(fp)
             # button.setEnabled(True)
             # button.setText(oldText)
@@ -249,6 +286,8 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
             return False
         else:
             return True
+        finally:
+            self.parent().parent().parent().parent().setTabEnabled(2, importReady())
     
     def getSaveData(self, button: QPushButton):
         return
@@ -373,7 +412,6 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
             self.statsSongsValue.setText(str(len(ArcadeData)))
             self.statsErrorsValue.setText(str(unknownSongCount))
 
-            # self.parent().parent().parent().parent().setTabEnabled(2, True) #ugh..
             # self.csvInputDirPath.setText(fp)
             # self.csvInputDirPath.setText(str(fp))
             # button.setEnabled(True)
@@ -384,6 +422,8 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
             return False
         else:
             return True
+        finally:
+            self.parent().parent().parent().parent().setTabEnabled(2, importReady())
 
 
 
