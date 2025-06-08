@@ -116,10 +116,12 @@ class ArcadeData:
         ArcadeData is a wrapper class that implements some convenience methods.
         """
         df = pd.read_csv(Path(fp), encoding="utf_8_sig")
-        df.rename(columns=CSV_HEADERS, inplace=True) #Rename the default CSV headers
+        # df.rename(columns=CSV_HEADERS, inplace=True) #Rename the default CSV headers
         #Append the mIDs to the dataset
         dfTitles = df.iloc[:, 0] 
         matching_mIDs = dfTitles.map(getSongID)
+        if "mID" in df.columns:
+            df.drop(columns="mID", inplace=True)
         df.insert(1, "mID", matching_mIDs)
         df.sort_values("mID", inplace=True)
         self.df = df
@@ -184,7 +186,7 @@ class ArcadeData:
         Returns a list of songs in the data which could not successfully be matched to an mID.
         """
         songIsUnknown = self.df["mID"] == -1
-        return [x[0] for x in self.df.loc[songIsUnknown, ['Title']].values]
+        return [x[0] for x in self.df.loc[songIsUnknown, ['title']].values]
 
 GRADE = {
     "D": 1,
