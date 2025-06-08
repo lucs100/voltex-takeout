@@ -8,7 +8,7 @@ import pandas as pd
 from fuzzywuzzy import process
 from fuzzywuzzy import fuzz
 
-CONFIDENT_MODE = 0
+ENABLE_FUZZING = 0
 
 MIDS = {}
 with open("data/title_to_mid.json", 'r', encoding="utf_8_sig") as file:
@@ -19,6 +19,20 @@ all_titles = MIDS.keys() # for fuzzy search
 ID_CHARS = ascii_letters + digits
 def newID():
     return "".join(choices(ID_CHARS, k=16))
+
+CSV_HEADERS = {
+    "title": "Title", 
+    "難易度": "Difficulty",
+    "楽曲レベル": "Level",
+    "クリアランク": "Lamp",
+    "スコアグレード": "Grade",
+    "ハイスコア": "Score",
+    "EXスコア": "EX Score",
+    "プレー回数": "Plays",
+    "クリア回数": "Clears",
+    "ULTIMATE CHAIN": "ULTIMATE CHAIN",
+    "PERFECT": "PERFECT"
+}
 
 class SaveData:
     def __init__(self, fp: str|Path) -> bool:
@@ -55,6 +69,123 @@ class SaveData:
         """
         return [x for x in self.keys if x.get("collection") == "music"]
 
+    def __len__(self) -> int:
+        """
+        Convenience method. Equivalent to len(self.keys).
+        """
+        return len(self.keys)
+
+    def writeKeys(self, keys: list[dict], backup_fp: str|Path|None = None) -> None:
+        """
+        Writes a list of keys to an Asphyxia CORE SDVX database.
+        Note this function simply appends a list of keys to a file.
+        A backup will ALWAYS be created.
+
+        Args:
+            keys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
+            backup_fp: Where to copy the DB file to before modifying it. Defaults to a timestamped sibling file.
+        """
+        source_fp = self.fp
+        # Backup the file
+        if backup_fp is None:
+            backup_fp: Path = Path(source_fp).parent / f"voltex_takeout_backup_{int(datetime.now().timestamp())}.db"
+        else:
+            backup_fp = Path(backup_fp)
+        assert not backup_fp.exists(), "Backup already exists!"
+        shutil.copy(source_fp, backup_fp)
+        assert backup_fp.exists(), "Failed to copy a backup!"
+
+        # Convert the keys into strings, in the format Asphyxia wants
+        entries = []
+        for key in keys:
+            entry = str(key)
+            entry = entry.replace(" ", "") #remove spaces
+            entry = entry.replace("'", '"') #use double quotes instead of single
+            entries.append(entry)
+            # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
+        
+        with open(source_fp, 'a') as file:
+            file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
+            file.write("\n".join(entries))
+
+class ArcadeData:
+    def __init__(self, fp: str|Path):
+        """
+        Loads a SDVX data file (.csv) as a DataFrame.
+        Adds a column with the mID of each song.
+        ArcadeData is a wrapper class that implements some convenience methods.
+        """
+        df = pd.read_csv(Path(fp), encoding="utf_8_sig")
+        df.rename(columns=CSV_HEADERS, inplace=True) #Rename the default CSV headers
+        #Append the mIDs to the dataset
+        dfTitles = df.iloc[:, 0] 
+        matching_mIDs = dfTitles.map(getSongID)
+        df.insert(1, "mID", matching_mIDs)
+        df.sort_values("mID", inplace=True)
+        self.df = df
+    
+    def generateKeys(self, user_id: str) -> list[dict]:
+        """
+        Returns a list of Asphyxia CORE database keys based on play data.
+
+        Args:
+            user_id: The Asphyxia CORE user ID (_refID) to associate each play key with. 
+        """
+        data = []
+
+        for idx, row in self.df.iterrows():
+            if row["mID"] == -1:
+                print(f"Warning: Couldn't find music ID for {row['title']}. Skipping.")
+                continue
+            insertTime = int(datetime.now().timestamp())
+            key = {
+                "collection": "music",
+                "mid": int(row["mID"]), #Music ID
+                "type": DIFFICULTY[row["難易度"]],
+                "score": row["ハイスコア"], #High Score
+                "exscore": row["EXスコア"], #EX Score
+                "clear": CLEAR_LAMP[row["クリアランク"]], #Clear Rank 
+                "grade": GRADE[row["スコアグレード"]], #Score Grade
+                "buttonRate": 10, #just a 'score' for each hit type out of 10 - not actually used
+                "longRate": 10,
+                "volRate": 10,
+                "__s": "plugins_profile",
+                "__refid": user_id,
+                "_id": newID(),
+                "createdAt": {
+                    "$$date": insertTime #First play of the song 
+                    # TODO: investigate: does this do anything? will keys fail to load if times are changed?
+                    # ie. is this just used by the db schema, or does asphyxia actually look at it to determine when a song was
+                    # first played, when its best was updated, etc?
+                },
+                "updatedAt": {
+                    "$$date": insertTime #Time of record insert
+                }
+            }
+            # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
+            data.append(key)
+        
+        return data
+
+    def getSongCount(self) -> int:
+        """
+        Returns the number of songs in the data file.
+        """
+        return len(self.df)
+
+    def __len__(self) -> int:
+        """
+        Convenience method. Equivalent to self.getSongCount().
+        """
+        return self.getSongCount()
+
+    def getUnknownSongs(self) -> list[str]:
+        """
+        Returns a list of songs in the data which could not successfully be matched to an mID.
+        """
+        songIsUnknown = self.df["mID"] == -1
+        return [x[0] for x in self.df.loc[songIsUnknown, ['Title']].values]
+
 GRADE = {
     "D": 1,
     "C": 2,
@@ -88,39 +219,6 @@ DIFFICULTY = {
     "EXCEED": 3
 }
 
-def writeKeys(source_fp: str|Path, keys: list[dict], backup_fp: str|Path|None = None) -> None:
-    """
-    Writes a list of keys to an Asphyxia CORE SDVX database.
-    Note this function simply appends a list of keys to a file.
-    A backup will ALWAYS be created.
-
-    Args:
-        source_fp: Where to load the DB from.
-        keys: The list of play data keys to append.
-        backup_fp: Where to copy the DB file to before modifying it. Defaults to a timestamped sibling file.
-    """
-    # Backup the file
-    if backup_fp is None:
-        backup_fp: Path = Path(source_fp).parent / f"voltex_takeout_backup_{int(datetime.now().timestamp())}.db"
-    else:
-        backup_fp = Path(backup_fp)
-    assert not backup_fp.exists(), "Backup already exists!"
-    shutil.copy(source_fp, backup_fp)
-    assert backup_fp.exists(), "Failed to copy a backup!"
-
-    # Convert the keys into strings, in the format Asphyxia wants
-    entries = []
-    for key in keys:
-        entry = str(key)
-        entry = entry.replace(" ", "") #remove spaces
-        entry = entry.replace("'", '"') #use double quotes instead of single
-        entries.append(entry)
-        # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
-    
-    with open(source_fp, 'a') as file:
-        file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
-        file.write("\n".join(entries))
-
 def getSaveDataPath(fp: str|Path, dbName: str = "sdvx@asphyxia.db") -> Path|None:
     """
     Checks if a savedata file exists in the given path.
@@ -141,96 +239,30 @@ def getSaveDataPath(fp: str|Path, dbName: str = "sdvx@asphyxia.db") -> Path|None
 def getSongID(title) -> int:
     """
     Returns the mID of the passed title, or -1 if no match is found.
-    If CONFIDENT_MODE is True, attempts to fuzzy match.
+        [Cannot use None as will be cast to NaN in a DataFrame.]
+    If ENABLE_FUZZING is True, attempts to fuzzy match.
     """
     if title in MIDS.keys(): #exact match
         return int(MIDS[title])  
-    if CONFIDENT_MODE:
+    if ENABLE_FUZZING:
         try:
             (match, score) = process.extractOne(title, all_titles, 
                                 scorer=fuzz.token_set_ratio, score_cutoff=80)
             return MIDS[match]
         except TypeError: #no sufficient match
             return -1
-
-def append_mIDs(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Adds a column to a SDVX data file (.csv) with the mID of each song.
-    """
-    dfTitles = df.iloc[:, 0]
-    matching_mIDs = dfTitles.map(getSongID)
-    df.insert(1, "mID", matching_mIDs)
-    df.sort_values("mID", inplace=True)
-    return df
-
-def _getUnknownSongs(df: pd.DataFrame) -> list[str]:
-    """
-    Used for debugging.
-    Gets all songs in a DataFrame which were not successfully matched to an mID.
-    """
-    songIsUnknown = df["mID"] == -1
-    return [x[0] for x in df.loc[songIsUnknown, ['title']].values]
+    #If title was not found with either method, return -1
+    return -1
 
 def _saveDF(df: pd.DataFrame, target: str|Path) -> None:
     """
     Used for debugging.
-    Saves a DataFrame to an e-amuse SDVX data file (.csv). 
+    Saves a DataFrame to a replica e-amuse SDVX data file (.csv). 
     """
     target = Path(target)
     df.to_csv(target, index=False)
     # quotes in some songs seem to be messing with csv output (for the csv-lint extension)
     # df.to_csv(target, index=False, quotechar="`")
-
-def loadScores(source: str|Path) -> pd.DataFrame:
-    """
-    Loads an e-amuse SDVX data file (.csv) into a DataFrame.
-    """
-    source = Path(source)
-    return pd.read_csv(source, encoding="utf_8_sig")
-
-def generateKeysFromDF(df: pd.DataFrame, user_id: str) -> list[dict]:
-    """
-    Returns a list of Asphyxia CORE database keys based on play data from a DataFrame.
-
-    Args:
-        df: The DataFrame of play data.
-        user_id: The Asphyxia CORE user ID (_refID) to associate each play key with. 
-    """
-    data = []
-
-    for idx, row in df.iterrows():
-        if row["mID"] is None:
-            print(f"Warning: Couldn't find music ID for {row['title']}. Skipping.")
-            continue
-        insertTime = int(datetime.now().timestamp())
-        key = {
-            "collection": "music",
-            "mid": int(row["mID"]), #Music ID
-            "type": DIFFICULTY[row["難易度"]],
-            "score": row["ハイスコア"], #High Score
-            "exscore": row["EXスコア"], #EX Score
-            "clear": CLEAR_LAMP[row["クリアランク"]], #Clear Rank 
-            "grade": GRADE[row["スコアグレード"]], #Score Grade
-            "buttonRate": 10, #just a 'score' for each hit type out of 10 - not actually used
-            "longRate": 10,
-            "volRate": 10,
-            "__s": "plugins_profile",
-            "__refid": user_id,
-            "_id": newID(),
-            "createdAt": {
-                "$$date": insertTime #First play of the song 
-                # TODO: investigate: does this do anything? will keys fail to load if times are changed?
-                # ie. is this just used by the db schema, or does asphyxia actually look at it to determine when a song was
-                # first played, when its best was updated, etc?
-            },
-            "updatedAt": {
-                "$$date": insertTime #Time of record insert
-            }
-        }
-        # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
-        data.append(key)
-    
-    return data
 
 # Song schema: 
 # {

@@ -19,26 +19,31 @@ try:
 except ImportError:
     pass
 
-KONAMI_WEB_LINK = "https://p.eagate.573.jp/game/sdvx/vi/index.html"
+EXPORT_WEB_LINK = "https://p.eagate.573.jp/game/sdvx/vi/index.html"
 DOWNLOAD_GUIDE_LINK = "https://github.com/lucs100/voltex-takeout/blob/master/csv_guide.md"
 
 DB_LOAD_HELP_STR = ("We first need to load the database, so we can check which users exist.<br>"
                    "It's likely stored in <b>.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</b>.")
 
 CSV_LOAD_HELP_STR = ("Next we need to load your data file.<br>"
-                    f"This should be the official data download from <a href='{KONAMI_WEB_LINK}'>Konami</a>.<br>"
-                    "<b>Note:</b> you need the e-amusement Basic Course subscription to get this file. "
+                    f"This should be the official data download from the <a href='{EXPORT_WEB_LINK}'>official site</a>.<br>"
+                    "<b>Note:</b> you need the Basic Course subscription to get this file. "
                     f"A guide is provided <a href='{DOWNLOAD_GUIDE_LINK}'>here</a>.")
 
 DB_WRITE_HELP_STR = ("Finally we need to write to the database. We'll take a backup first.")
 
 APP_NAME = "VoltexTakeout"
 ORG_NAME = "lucs100"
-APP_VER = "0.1"
+APP_VER = "0.2"
 
 #Globals
-saveData: engine.SaveData|None = None #initialize to none, will be modified later
-arcadeData: engine.pd.DataFrame|None = None #initialize to none, will be modified later
+SaveData: engine.SaveData|None = None #initialize to none, will be modified later
+ArcadeData: engine.ArcadeData|None = None #initialize to none, will be modified later
+def importReady() -> bool:
+    """
+    Checks whether a data import is ready (ie. if all required files are loaded).
+    """
+    return (SaveData is not None) and (ArcadeData is not None)
 
 #create a custom subclassed window
 class VoltexTakeoutMainWindow(QMainWindow):
@@ -167,44 +172,71 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
 
         self.setContentsMargins(8, 16, 8, 16)
     
-    def openLoadDB(self, button: QPushButton):
-        fp, fileFilter = QFileDialog.getOpenFileName(
-            None,
-            caption = "Select savedata file...",
-            directory = "C:",
-            filter = "Asphyxia CORE Database (*.db);;All Files (*)"
-        )
-        print(f"File: {fp}")
-        if fp == '':
-            return
-
-        # Checks ok, we can proceed
-        # oldText = button.text()
-        # button.setText("Loading... just a sec!")
-        print("Beginning load...")
-        # button.setEnabled(False)
-        
+    def openLoadDB(self, button: QPushButton):        
         try:
-            global saveData
-            saveData = engine.SaveData(fp)
+            fp, fileFilter = QFileDialog.getOpenFileName(
+                None,
+                caption = "Select savedata file...",
+                directory = "C:",
+                filter = "Asphyxia CORE Database (*.db);;All Files (*)"
+            )
+            print(f"File: {fp}")
+            if fp == '':
+                return #No file selected, do nothing
+
+            # Checks ok, we can proceed
+            # oldText = button.text()
+            # button.setText("Loading... just a sec!")
+            print("Beginning load...")
+            # button.setEnabled(False)
+            
+            #Reset SaveData (if load fails, then clear the previous loaded data)
+            global SaveData
+            SaveData = None
+
+            rawSaveData = engine.SaveData(fp)
+            assert rawSaveData is not None, "No save data was returned."
+            print(rawSaveData)
+
         except Exception as e:
             msg = QMessageBox.critical(None, "Error!", 
                                       f"<b>Data load failed:</b><br>{e}")
             return False
-        assert saveData is not None, "No save data was returned."
-        print(saveData)
+        else:
+            SaveData = rawSaveData
+        finally:
+            self.updateReadouts()
+        return True
+    
+    def updateReadouts(self):
+        """
+        Update readouts using the SaveData global.
+        """
+        try:
+            if SaveData is None:
+                self.dbLoadStatusValue.setText("Not yet loaded")
+                self.dbLoadStatusValue.setStyleSheet("color: black")
+                self.statsKeysValue.setText("--")
+                self.statsUsersValue.setText("--")
+                self.statsPlaysValue.setText("--")
+                return True
 
-        # Set button and text states on success (wow this sucks)
-        self.dbLoadStatusValue.setText("Loaded!")
-        self.dbLoadStatusValue.setStyleSheet("color: green")
-        self.statsKeysValue.setText(str(len(saveData.keys)))
-        self.statsUsersValue.setText(str(len(saveData.getProfiles())))
-        self.statsPlaysValue.setText(str(len(saveData.getPlayData())))
+            self.dbLoadStatusValue.setText("Loaded!")
+            self.dbLoadStatusValue.setStyleSheet("color: green")
+            self.statsKeysValue.setText(str(len(SaveData)))
+            self.statsUsersValue.setText(str(len(SaveData.getProfiles())))
+            self.statsPlaysValue.setText(str(len(SaveData.getPlayData())))
 
-        self.parent().parent().parent().parent().setTabEnabled(1, True)
-        # self.dbInputDirPath.setText(fp)
-        # button.setEnabled(True)
-        # button.setText(oldText)
+            self.parent().parent().parent().parent().setTabEnabled(1, True)
+            # self.dbInputDirPath.setText(fp)
+            # button.setEnabled(True)
+            # button.setText(oldText)
+        except Exception as e:
+            msg = QMessageBox.critical(None, "Error!", 
+                    f"<b>Updating readouts failed:</b><br>{e}")
+            return False
+        else:
+            return True
     
     def getSaveData(self, button: QPushButton):
         return
@@ -248,6 +280,8 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
 
         self.statsSongsLabel = QLabel("Songs:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
         self.statsSongsValue = QLabel("--")
+        self.statsErrorsLabel = QLabel("Errors:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        self.statsErrorsValue = QLabel("--")
 
         # self.addWidget(self.csvInputDirHint, 0, 0)
         # self.addWidget(self.csvInputDirPath, 0, 1, 1, 2)
@@ -258,47 +292,88 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
 
         self.addWidget(self.statsSongsLabel, 1, 2)
         self.addWidget(self.statsSongsValue, 1, 3)
+        self.addWidget(self.statsErrorsLabel, 2, 2)
+        self.addWidget(self.statsErrorsValue, 2, 3)
         
         self.setContentsMargins(8, 16, 8, 16) 
 
     def openLoadCSV(self, button: QPushButton):
-        fp, fileFilter = QFileDialog.getOpenFileName(
-            None,
-            caption = "Select arcade data file...",
-            directory = "C:",
-            filter = "e-amuse Data Export (*.csv);;All Files (*)"
-        )
-        print(f"File: {fp}")
-        if fp == '':
-            return
-
-        # Checks ok, we can proceed
-        # oldText = button.text()
-        # button.setText("Loading... just a sec!")
-        print("Beginning load...")
-        # button.setEnabled(False)
-        
         try:
-            global arcadeData
-            arcadeData = engine.loadScores(fp)
-            
+            fp, fileFilter = QFileDialog.getOpenFileName(
+                None,
+                caption = "Select arcade data file...",
+                directory = "C:",
+                filter = "e-amuse Data Export (*.csv);;All Files (*)"
+            )
+            print(f"File: {fp}")
+            if fp == '':
+                return #No file selected
+
+            # Checks ok, we can proceed
+            # oldText = button.text()
+            # button.setText("Loading... just a sec!")
+            print("Beginning load...")
+            # button.setEnabled(False)
+
+            #Reset ArcadeData (if load fails, then clear the previous loaded data)
+            global ArcadeData
+            ArcadeData = None
+
+            rawArcadeData = engine.ArcadeData(fp)
+            print(rawArcadeData)
+            assert rawArcadeData is not None, "No save data was returned."
+
         except Exception as e:
             msg = QMessageBox.critical(None, "Error!", 
-                                      f"<b>Data load failed:</b><br>{e}")
+                    f"<b>Data load failed:</b><br>{e}")
             return False
-        assert arcadeData is not None, "No save data was returned."
-        print(arcadeData)
+        else:
+            ArcadeData = rawArcadeData
+        finally:
+            self.updateReadouts()
+        return True
 
-        # Set button and text states on success (wow this sucks)
-        self.csvLoadStatusValue.setText("Loaded!")
-        self.csvLoadStatusValue.setStyleSheet("color: green")
-        self.statsSongsValue.setText(str(len(arcadeData)))
+    def updateReadouts(self):
+        """
+        Update readouts using the ArcadeData global.
+        """
+        try:
+            if ArcadeData is None:
+                self.csvLoadStatusValue.setText("Not yet loaded")
+                self.csvLoadStatusValue.setStyleSheet("color: black")
+                self.statsSongsValue.setText("--")
+                self.statsErrorsValue.setText("--")
+                return True
+            
+            unknownSongs = ArcadeData.getUnknownSongs()
+            # Set button and text states on success (wow this sucks)
+            if (unknownSongCount := len(unknownSongs)) > 0:
+                # Some songs weren't found
+                unknownSongList = " ".join((f"<li>{song}" for song in unknownSongs))
+                msg = QMessageBox.warning(None, "Warning!", 
+                        f"<b>{unknownSongCount} songs were unknown:</b><ul>{unknownSongList}</ul>")
+                self.csvLoadStatusValue.setText("Loaded with errors.")
+                self.csvLoadStatusValue.setStyleSheet("color: red")
+            else:
+                # All songs were found
+                self.csvLoadStatusValue.setText("Loaded!")
+                self.csvLoadStatusValue.setStyleSheet("color: green")
+            self.statsSongsValue.setText(str(len(ArcadeData)))
+            self.statsErrorsValue.setText(str(unknownSongCount))
 
-        # self.parent().parent().parent().parent().setTabEnabled(2, True) #ugh..
-        # self.csvInputDirPath.setText(fp)
-        # self.csvInputDirPath.setText(str(fp))
-        # button.setEnabled(True)
-        # button.setText(oldText)
+            # self.parent().parent().parent().parent().setTabEnabled(2, True) #ugh..
+            # self.csvInputDirPath.setText(fp)
+            # self.csvInputDirPath.setText(str(fp))
+            # button.setEnabled(True)
+            # button.setText(oldText)
+        except Exception as e:
+            msg = QMessageBox.critical(None, "Error!", 
+                    f"<b>Updating readouts failed:</b><br>{e}")
+            return False
+        else:
+            return True
+
+
 
 class VoltexTakeoutDBWriteTray(QGridLayout):
     def __init__(self, parentWindow: QMainWindow, identifier: str = "DBWriteTray"):
