@@ -22,10 +22,10 @@ except ImportError:
 KONAMI_WEB_LINK = "https://p.eagate.573.jp/game/sdvx/vi/index.html"
 DOWNLOAD_GUIDE_LINK = "https://github.com/lucs100/voltex-takeout/blob/master/csv_guide.md"
 
-DB_LOAD_HELP_STR = ("We first need to load the database, so we can check which users exist. "
+DB_LOAD_HELP_STR = ("We first need to load the database, so we can check which users exist.<br>"
                    "It's likely stored in <b>.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</b>.")
 
-CSV_LOAD_HELP_STR = ("Next we need to load your data file. "
+CSV_LOAD_HELP_STR = ("Next we need to load your data file.<br>"
                     f"This should be the official data download from <a href='{KONAMI_WEB_LINK}'>Konami</a>.<br>"
                     "<b>Note:</b> you need the e-amusement Basic Course subscription to get this file. "
                     f"A guide is provided <a href='{DOWNLOAD_GUIDE_LINK}'>here</a>.")
@@ -38,6 +38,7 @@ APP_VER = "0.1"
 
 #Globals
 saveData: engine.SaveData|None = None #initialize to none, will be modified later
+arcadeData: engine.pd.DataFrame|None = None #initialize to none, will be modified later
 
 #create a custom subclassed window
 class VoltexTakeoutMainWindow(QMainWindow):
@@ -51,26 +52,26 @@ class VoltexTakeoutMainWindow(QMainWindow):
         else: iconPath = "./assets/VoltexTakeout.png"
         print(iconPath)
         self.setWindowIcon(QIcon(iconPath))
-        self.setFixedSize(1000, 375) #minimal height
+        self.setFixedSize(500, 350)
 
         self.mainContainer = QWidget()
         self.layout = QVBoxLayout()
 
         self.tabs = QTabWidget()
-        self.tabs.resize(1000, 500)
+        self.tabs.resize(500, 600)
 
         self.tab1 = QWidget()
         self.tab2 = QWidget()
         self.tab3 = QWidget()
 
-        INFO_GROUP_HEIGHT = 80
+        INFO_GROUP_HEIGHT = 120
 
         # define our entire tabs
         self.dbLoadPanel = VoltexTakeoutInfoTray(DB_LOAD_HELP_STR)
         self.dbLoadInfoGroup = VoltexTakeoutTitledPanel(self.dbLoadPanel, "Database load instructions")
         self.dbLoadInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
         self.dbLoadPanel = VoltexTakeoutDBLoadTray(self)
-        self.dbLoadGroup = VoltexTakeoutTitledPanel(self.dbLoadPanel, "Load database files")
+        self.dbLoadGroup = VoltexTakeoutTitledPanel(self.dbLoadPanel, "Load database file")
         self.tab1.layout = QVBoxLayout()
         self.tab1.layout.addWidget(self.dbLoadInfoGroup)
         self.tab1.layout.addWidget(self.dbLoadGroup)
@@ -99,8 +100,8 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.tab3.setLayout(self.tab3.layout)
         self.tabs.addTab(self.tab3, "Step 3 [Write to database]")
 
-        self.tabs.setTabEnabled(1, False)
-        self.tabs.setTabEnabled(2, False)
+        # self.tabs.setTabEnabled(1, False)
+        # self.tabs.setTabEnabled(2, False)
 
         self.layout.addWidget(self.tabs)
         self.mainContainer.setLayout(self.layout)
@@ -118,7 +119,7 @@ class VoltexTakeoutInfoTray(QGridLayout):
         super().__init__()
 
         self.identifier = identifier
-        self.helpLabel = QLabel(helpLabel)
+        self.helpLabel = QLabel(helpLabel, wordWrap=True)
         self.helpLabel.setOpenExternalLinks(True)
         self.addWidget(self.helpLabel, 0, 0)
 
@@ -129,12 +130,12 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
         self.parentWindow = parentWindow
         self.identifier = identifier
 
-        self.dbInputDirHint = QLabel("SDVX savedata location:")
-        self.dbInputDirHint.setFixedWidth(150)
-        self.dbInputDirPath = QLabel("(None)")
+        # self.dbInputDirHint = QLabel("SDVX savedata location:")
+        # self.dbInputDirHint.setFixedWidth(150)
+        # self.dbInputDirPath = QLabel("(None)")
 
         self.dbInputBrowseButton = QPushButton("Select file...")
-        self.dbInputBrowseButton.setFixedWidth(150)
+        # self.dbInputBrowseButton.setFixedWidth(150)
         self.dbInputBrowseButton.clicked.connect(lambda:self.openLoadDB(self.dbInputBrowseButton))
 
         self.dbLoadStatusLabel = QLabel("Database status:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
@@ -150,19 +151,19 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
         self.statsPlaysValue = QLabel("--")
         
 
-        self.addWidget(self.dbInputDirHint, 0, 0)
-        self.addWidget(self.dbInputDirPath, 0, 1)
-        self.addWidget(self.dbInputBrowseButton, 0, 3)
+        # self.addWidget(self.dbInputDirHint, 0, 0)
+        # self.addWidget(self.dbInputDirPath, 0, 1)
+        self.addWidget(self.dbInputBrowseButton, 0, 0, 1, 2)
 
-        self.addWidget(self.dbLoadStatusLabel, 1, 0, 3, 1)
-        self.addWidget(self.dbLoadStatusValue, 1, 1, 3, 1)
+        self.addWidget(self.dbLoadStatusLabel, 1, 0, 2, 1)
+        self.addWidget(self.dbLoadStatusValue, 1, 1, 2, 1)
 
-        self.addWidget(self.statsKeysLabel, 1, 2)
-        self.addWidget(self.statsKeysValue, 1, 3)
-        self.addWidget(self.statsUsersLabel, 2, 2)
-        self.addWidget(self.statsUsersValue, 2, 3)
-        self.addWidget(self.statsPlaysLabel, 3, 2)
-        self.addWidget(self.statsPlaysValue, 3, 3)
+        self.addWidget(self.statsKeysLabel, 0, 2)
+        self.addWidget(self.statsKeysValue, 0, 3)
+        self.addWidget(self.statsUsersLabel, 1, 2)
+        self.addWidget(self.statsUsersValue, 1, 3)
+        self.addWidget(self.statsPlaysLabel, 2, 2)
+        self.addWidget(self.statsPlaysValue, 2, 3)
 
         self.setContentsMargins(8, 16, 8, 16)
     
@@ -178,10 +179,10 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
             return
 
         # Checks ok, we can proceed
-        oldText = button.text()
-        button.setText("Loading... just a sec!")
+        # oldText = button.text()
+        # button.setText("Loading... just a sec!")
         print("Beginning load...")
-        button.setEnabled(False)
+        # button.setEnabled(False)
         
         try:
             global saveData
@@ -201,10 +202,9 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
         self.statsPlaysValue.setText(str(len(saveData.getPlayData())))
 
         self.parent().parent().parent().parent().setTabEnabled(1, True)
-        self.dbInputDirPath.setText(fp)
-        self.dbInputDirPath.setText(str(fp))
-        button.setEnabled(True)
-        button.setText(oldText)
+        # self.dbInputDirPath.setText(fp)
+        # button.setEnabled(True)
+        # button.setText(oldText)
     
     def getSaveData(self, button: QPushButton):
         return
@@ -235,145 +235,70 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
         self.parentWindow = parentWindow
         self.identifier = identifier
        
-        self.csvInputDirHint = QLabel("Arcade data location:")
-        self.csvInputDirHint.setFixedWidth(150)
-        self.csvInputDirPath = QLineEdit()
-        self.csvInputBrowseButton = QPushButton("Select input folder...")
-        self.csvInputBrowseButton.clicked.connect(self.openInputFileDialog)
+        # self.csvInputDirHint = QLabel("Arcade data location:")
+        # self.csvInputDirHint.setFixedWidth(150)
+        # self.csvInputDirPath = QLabel("(None)")
+        self.csvInputBrowseButton = QPushButton("Select e-amuse export...")
+        # self.csvInputBrowseButton.setFixedWidth(150)
+        self.csvInputBrowseButton.clicked.connect(lambda: self.openLoadCSV(self.csvInputBrowseButton))
         
-        self.csvLoadStatusLabel = QLabel("Arcade CSV status:")
-        self.csvLoadStatusLabel.setFixedWidth(150)
+        self.csvLoadStatusLabel = QLabel("Arcade CSV status:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        # self.csvLoadStatusLabel.setFixedWidth(150)
         self.csvLoadStatusValue = QLabel("Not yet loaded")
-        
-        self.loadCSVButton = QPushButton("Load arcade data")
-        # self.unpackButton.setFixedSize(189, 121)
-        self.loadCSVButton.clicked.connect(lambda:self.getSaveData(self.loadDBButton))
 
-        self.addWidget(self.csvInputDirHint, 2, 0)
-        self.addWidget(self.csvInputDirPath, 2, 1, 1, 2)
-        self.addWidget(self.csvInputBrowseButton, 2, 3)
-        
-        self.addWidget(self.loadCSVButton, 3, 0, 1, 2)
-        self.addWidget(self.csvLoadStatusLabel, 3, 2)
-        self.addWidget(self.csvLoadStatusValue, 3, 3)
-        
-        self.setContentsMargins(8, 16, 8, 16)
-    
-    def generateRandomModName(self):
-        output = self.DEFAULT_OUTPUT_DIR #.../clash/resources/contentpacks
-        placeholderName = "myVoltexTakeoutMod"
-        if not engine.modExists(output, placeholderName): return placeholderName
-        i = 1 #ugly
-        while True:
-            if not engine.modExists(output, placeholderName+str(i)): 
-                return (placeholderName+str(i))     
-            else: i += 1   
+        self.statsSongsLabel = QLabel("Songs:", alignment=Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignVCenter)
+        self.statsSongsValue = QLabel("--")
 
-    def openInputFileDialog(self):
-        dir = QFileDialog.getExistingDirectory(
+        # self.addWidget(self.csvInputDirHint, 0, 0)
+        # self.addWidget(self.csvInputDirPath, 0, 1, 1, 2)
+        self.addWidget(self.csvInputBrowseButton, 0, 0, 1, 2)
+        
+        self.addWidget(self.csvLoadStatusLabel, 1, 0, 2, 1)
+        self.addWidget(self.csvLoadStatusValue, 1, 1, 2, 1)
+
+        self.addWidget(self.statsSongsLabel, 1, 2)
+        self.addWidget(self.statsSongsValue, 1, 3)
+        
+        self.setContentsMargins(8, 16, 8, 16) 
+
+    def openLoadCSV(self, button: QPushButton):
+        fp, fileFilter = QFileDialog.getOpenFileName(
             None,
-            caption = "Select input phase file folder...",
-            directory = f"C:\\Users\\{os.getlogin()}"
+            caption = "Select arcade data file...",
+            directory = "C:",
+            filter = "e-amuse Data Export (*.csv);;All Files (*)"
         )
-        if dir:
-            path = pathlib.Path(dir)
-            self.inputDirPath.setText(str(path))
-            print(f"Selected {path} in tray {self.identifier}")
+        print(f"File: {fp}")
+        if fp == '':
+            return
 
-    def setDefaultInputDir(self):
-        self.inputDirPath.setText(self.DEFAULT_LOOSE_DIR)
-
-    def deleteModeWarning(self, button: QCheckBox):
-        msgData = { #folder, file
-            False: {
-                False: (None, None),
-                True: (QMessageBox.warning, "This will delete your loose asset files once complete. They'll still be available in the generated phase folders and multifile. Is this OK?")
-            },
-            True: {
-                False: (QMessageBox.warning, "This will delete generated folders once complete. Your asset files won't be deleted. Is this OK?"),
-                True: (QMessageBox.critical, "This will delete loose asset files AND generated folders once complete. They'll still be available in the generated multifile, but you'll have to unpack it or with VoltexTakeout <b>(which can be annoying)</b>. Is this OK?")
-            }
-        }
-        messageType, messageStr = msgData[self.delFoldersModeBox.isChecked()][self.delFilesModeBox.isChecked()] #this is the best thing i have ever written
-        if button.isChecked() and messageType is not None:
-            result = messageType(None, "Note!", messageStr, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No)
-            if result == QMessageBox.StandardButton.No:
-                button.setChecked(False)
-    
-    # def handleRepackResultData(self, repackResult: engine.phasePackOverallResult):
-    #     if not repackResult.isClean():
-    #         messageTypes: tuple(QMessageBox, str) = {
-    #             4: (QMessageBox.critical, "Warning!"),
-    #             3: (QMessageBox.warning, "Warning!"),
-    #             2: (QMessageBox.warning, "Note!"),
-    #             1: (QMessageBox.information, "Note!"),
-    #         }
-    #         maxLevel = repackResult.getMaxWarningLevel()
-    #         messageClass, title = messageTypes[maxLevel]
-
-    #         warningStr = ""
-
-    #         #messy, but how do you refactor this?? probably easier to just be explicit
-    #         if (level4Files := repackResult.getFilesAtLevel(4)) is not None:
-    #             warningStr += f"VoltexTakeout skipped the following files:\n\n{level4Files}\n\nThis file doesn't seem to be part of Clash's resources. If you're sure this is a mistake, let me know on Github.\n"
-    #         if (level3Files := repackResult.getFilesAtLevel(3)) is not None:
-    #             warningStr += f"VoltexTakeout skipped the following files:\n\n{level3Files}\n\nClash has multiple different files with these names, so VoltexTakeout can't tell which one you mean right now. This will be added eventually - let me know on GitHub that you ran into this.\n"
-    #         if (level2Files := repackResult.getFilesAtLevel(2)) is not None:
-    #             warningStr += f"The following files were successfully added:\n\n{level2Files}\n\nClash has extremely similar versions of these files with the same name - VoltexTakeout can't tell which one you meant to change, so it added both. This is likely fine but may cause some unexpected behaviour - let me know on Github if you have any weird behaviour in-game.\n"
-    #         if (level1Files := repackResult.getFilesAtLevel(1)) is not None:
-    #             warningStr += f"The following files were successfully added:\n\n{level1Files}\n\nClash has identical versions of these files with the same name - VoltexTakeout can't tell which one you meant to change, so it added both. This is probably fine but may cause some unexpected behaviour - let me know on Github if you have any weird behaviour in-game.\n"
-
-    #         msg = messageClass(None, title, warningStr.strip())
-
+        # Checks ok, we can proceed
+        # oldText = button.text()
+        # button.setText("Loading... just a sec!")
+        print("Beginning load...")
+        # button.setEnabled(False)
         
-    def handleRepackResultThread(self, threadResult: "ThreadResult"): 
-        threadResult.messageType(self.parentWindow, threadResult.title, threadResult.text)
-    
-    def repackTargetDir(self, button: QPushButton):
-        deleteFiles = self.delFilesModeBox.isChecked()
-        deleteFolders = self.delFoldersModeBox.isChecked()
-        outputDir = None
-        sourceDir = self.inputDirPath.text()
-        modName = self.modNameEntry.text()
-        if modName.endswith(".mf"): modName = modName[:-3]
-
-        if self.moveOutputModeBox.isChecked():
-            outputDir = self.DEFAULT_OUTPUT_DIR 
-            if engine.modExists(outputDir, modName):
-                msg = QMessageBox.critical(None, "Mod already exists!", f"{modName}.mf already exists in the output folder!\n({outputDir})")
-                return False
-        else: 
-            if engine.modExists(sourceDir, modName):
-                msg = QMessageBox.critical(None, "Mod already exists!", f"{modName}.mf already exists in the output folder!\n({sourceDir})")
-                return False
-        if not modName.isalnum(): #should refactor these checks but w/e...
-            msg = QMessageBox.critical(None, "Invalid mod name!", "Your mod name can only be alphanumeric! Note your mod name shouldn't end with '.mf'.")
+        try:
+            global arcadeData
+            arcadeData = engine.loadScores(fp)
+            
+        except Exception as e:
+            msg = QMessageBox.critical(None, "Error!", 
+                                      f"<b>Data load failed:</b><br>{e}")
             return False
-        
-        if engine.modExists(self.DEFAULT_OUTPUT_DIR, modName):
-            msg = QMessageBox.critical(None, "Mod already exists!", f"{modName}.mf already exists in the output folder!\n({outputDir})")
-            return False
-        #no pre-pack errors, we are good to go
-        button.setText("Repacking... just a sec!")
-        print("Beginning repack...")
-        button.setEnabled(False)
-        #incantations to run unpacker as a separate thread, via UnpackWorker()
-        self.thread = QThread()
-        self.worker = RepackWorker(dir=sourceDir, outputDir=outputDir, modName=modName, deleteFiles=deleteFiles, deleteFolders=deleteFolders)
-        self.worker.moveToThread(self.thread)
-        self.thread.started.connect(self.worker.run)
-        self.worker.finished.connect(self.thread.quit)
-        self.thread.finished.connect(self.worker.deleteLater)
-        self.worker.result.connect(self.handleRepackResultData)
-        self.worker.finished.connect(self.handleRepackResultThread)
-        self.thread.start()
+        assert arcadeData is not None, "No save data was returned."
+        print(arcadeData)
 
-        self.thread.finished.connect(
-            lambda: button.setEnabled(True)
-        )
-        self.thread.finished.connect(
-            lambda: button.setText("Go!")
-        )
+        # Set button and text states on success (wow this sucks)
+        self.csvLoadStatusValue.setText("Loaded!")
+        self.csvLoadStatusValue.setStyleSheet("color: green")
+        self.statsSongsValue.setText(str(len(arcadeData)))
+
+        # self.parent().parent().parent().parent().setTabEnabled(2, True) #ugh..
+        # self.csvInputDirPath.setText(fp)
+        # self.csvInputDirPath.setText(str(fp))
+        # button.setEnabled(True)
+        # button.setText(oldText)
 
 class VoltexTakeoutDBWriteTray(QGridLayout):
     def __init__(self, parentWindow: QMainWindow, identifier: str = "DBWriteTray"):
