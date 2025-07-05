@@ -82,8 +82,52 @@ class SaveData:
         """
         return len(self.keys)
 
-    def writeKeys(self, keys: list[dict], backup_fp: str|Path|None = None) -> None:
+    def addKeys(self, newKeys: list[dict]) -> None:
         """
+        Adds a list of keys to a SDVX database.
+        Does not change the original file; you must export it as a new file to avoid overwrites.
+
+        Args:
+            newKeys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
+        """
+        self.keys.extend(newKeys)
+    
+    def __add__(self, newKeys: list[dict]) -> None:
+        """
+        Convenience method for addKeys.
+
+        Args:
+            newKeys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
+        """
+        self.addKeys(newKeys)
+
+    def export(self, fp: str|Path) -> None:
+        """
+        Creates a new Asphyxia CORE SDVX database from the keys in this object.
+
+        Args:
+            keys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
+            fp: Where to write the new file.
+        """
+        assert fp != self.fp
+
+        # Convert the keys into strings, in the format Asphyxia wants
+        entries = []
+        for key in self.keys:
+            entry = str(key)
+            entry = entry.replace(" ", "") #remove spaces
+            entry = entry.replace("'", '"') #use double quotes instead of single
+            entries.append(entry)
+            # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
+        
+        with open(fp, 'a') as file:
+            file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
+            file.write("\n".join(entries))
+
+    def _writeKeys(self, keys: list[dict], backup_fp: str|Path|None = None) -> None:
+        """
+        DEPRECATED: Do not write directly to a DB!! Instead, append keys and write to a new file using export().
+
         Writes a list of keys to an Asphyxia CORE SDVX database.
         Note this function simply appends a list of keys to a file.
         A backup will ALWAYS be created.
@@ -91,7 +135,8 @@ class SaveData:
         Args:
             keys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
             backup_fp: Where to copy the DB file to before modifying it. Defaults to a timestamped sibling file.
-        """
+        """        
+        raise DeprecationWarning("This function is deprecated. Use appendKeys(), then write the file.")
         source_fp = self.fp
         # Backup the file
         if backup_fp is None:
@@ -122,7 +167,7 @@ class ArcadeData:
         Adds a column with the mID of each song.
         ArcadeData is a wrapper class that implements some convenience methods.
         """
-        self.fp: Path = Path(fp) 
+        self._fp: Path = Path(fp) 
         df = pd.read_csv(Path(fp), encoding="utf_8_sig")
         # df.rename(columns=CSV_HEADERS, inplace=True) #Rename the default CSV headers
         #Append the mIDs to the dataset
@@ -133,6 +178,13 @@ class ArcadeData:
         df.insert(1, "mID", matching_mIDs)
         df.sort_values("mID", inplace=True)
         self.df: pd.DataFrame = df
+
+    @property
+    def fp(self) -> Path:
+        """
+        Getter for the database filepath.
+        """
+        return self._fp
     
     def generateKeys(self, user_id: str) -> list[dict]:
         """
@@ -151,7 +203,7 @@ class ArcadeData:
             key = {
                 "collection": "music",
                 "mid": int(row["mID"]), #Music ID
-                "type": DIFFICULTY[row["難易度"]],
+                "type": DIFFICULTY[row["難易度"]], #Difficulty
                 "score": row["ハイスコア"], #High Score
                 "exscore": row["EXスコア"], #EX Score
                 "clear": CLEAR_LAMP[row["クリアランク"]], #Clear Rank 
