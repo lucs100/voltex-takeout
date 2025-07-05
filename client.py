@@ -21,18 +21,19 @@ except ImportError:
 
 EXPORT_WEB_LINK = "https://p.eagate.573.jp/game/sdvx/vi/index.html"
 DOWNLOAD_GUIDE_LINK = "https://github.com/lucs100/voltex-takeout/blob/master/csv_guide.md"
+GH_ISSUES_LINK = "https://github.com/lucs100/voltex-takeout/issues"
 
-DB_LOAD_HELP_STR = ("We first need to load the database, so we can check which users exist.<br>"
+DB_LOAD_HELP_STR = ("We first need to load your save data from the Asphyxia database.<br>"
                     "It's likely stored in <b>.../SOUND VOLTEX EXCEED GEAR/contents/savedata/</b>.<br>"
-                    "Your database will NOT be changed until Step 3.")
+                    "This file will NOT be changed, a new version will be created in Step 3.")
 
 CSV_LOAD_HELP_STR = ("Next we need to load your data file.<br>"
                     f"This should be the official data download from the <a href='{EXPORT_WEB_LINK}'>official site</a>.<br>"
-                     "<b>Note:</b> you need the Basic Course subscription to get this file. "
+                     "<b>Note:</b> You need the Basic Course subscription to get this file. "
                     f"A guide is provided <a href='{DOWNLOAD_GUIDE_LINK}'>here</a>.")
 
-DB_WRITE_HELP_STR = ("Finally we need to write to the database.<br>"
-                     "A backup will be made before editing your .db file.")
+DB_WRITE_HELP_STR = ("Finally, we need to create a new database file.<br>"
+                     "This won't affect your old database file.")
 
 SPLASH_INITIAL_STR = ("Welcome to <b>Voltex Takeout</b>! Please read the following to ensure no data is lost.<br><br>"
                      "Your e-amuse export file will NEVER be changed, and your Asphyxia CORE database will NOT be changed until Step 3. "
@@ -60,7 +61,8 @@ APP_VER = "0.2"
 #Globals
 SaveData: engine.SaveData|None = None #initialize to none, will be modified later
 ArcadeData: engine.ArcadeData|None = None #initialize to none, will be modified later
-def importReady() -> bool:
+
+def exportReady() -> bool:
     """
     Checks whether a data import is ready (ie. if all required files are loaded).
     """
@@ -78,19 +80,18 @@ class VoltexTakeoutMainWindow(QMainWindow):
         else: iconPath = "./assets/VoltexTakeout.png"
         print(iconPath)
         self.setWindowIcon(QIcon(iconPath))
-        self.setFixedSize(500, 350)
+        self.setFixedSize(550, 550)
 
         self.mainContainer = QWidget()
         self.layout = QVBoxLayout()
 
         self.tabs = QTabWidget()
-        self.tabs.resize(500, 600)
+        self.tabs.resize(500, 400)
         self.tabs.currentChanged.connect(self.updateTab)
-
 
         self.tab1 = QWidget()
         self.tab2 = QWidget()
-        self.tab3 = QWidget()
+        self.exportTab = QWidget()
 
         INFO_GROUP_HEIGHT = 120
 
@@ -117,51 +118,57 @@ class VoltexTakeoutMainWindow(QMainWindow):
         self.tab2.setLayout(self.tab2.layout)
         self.tabs.addTab(self.tab2, "Step 2 [Load arcade data]")
         
-        self.dbWriteInfoPanel = VoltexTakeoutInfoTray(DB_WRITE_HELP_STR)
-        self.dbWriteInfoGroup = VoltexTakeoutTitledPanel(self.dbWriteInfoPanel, "Database write instructions")
-        self.dbWriteInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
-        self.dbWritePanel = VoltexTakeoutDBWriteTray(self)
-        self.dbWriteGroup = VoltexTakeoutTitledPanel(self.dbWritePanel, "Write to DB")
-        self.tab3.layout = QVBoxLayout()
-        self.tab3.layout.addWidget(self.dbWriteInfoGroup)
-        self.tab3.layout.addWidget(self.dbWriteGroup)
-        self.tab3.setLayout(self.tab3.layout)
-        self.tabs.addTab(self.tab3, "Step 3 [Write to database]")
+        # self.dbWriteInfoPanel = VoltexTakeoutInfoTray(DB_WRITE_HELP_STR)
+        # self.dbWriteInfoGroup = VoltexTakeoutTitledPanel(self.dbWriteInfoPanel, "Database write instructions")
+        # self.dbWriteInfoGroup.setFixedHeight(INFO_GROUP_HEIGHT)
+        self.dbExportPanel = VoltexTakeoutExportTray(self)
+        self.dbExportGroup = VoltexTakeoutTitledPanel(self.dbExportPanel, "Export new DB")
+        self.exportTab.layout = QVBoxLayout()
+        # self.tab3.layout.addWidget(self.dbWriteInfoGroup)
+        self.exportTab.layout.addWidget(self.dbExportGroup)
+        self.exportTab.setLayout(self.exportTab.layout)
+        # self.tabs.addTab(self.tab3, "Step 3 [Write to database]")
 
         # self.tabs.setTabEnabled(1, False)
-        self.tabs.setTabEnabled(2, False)
-
+        
         self.layout.addWidget(self.tabs)
+        self.layout.addWidget(self.exportTab)
         self.mainContainer.setLayout(self.layout)
         self.setCentralWidget(self.mainContainer)
 
-        btn_yes = QMessageBox.StandardButton.Yes
-        btn_no = QMessageBox.StandardButton.No
-        response = QMessageBox.warning(None, "Important!", SPLASH_INITIAL_STR, btn_yes | btn_no)
-        if response == btn_yes:
-            #ugh, all this because I wanted to add silly text...
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Icon.Information)
-            msg.setWindowTitle("Ready to go!")
-            msg.setText(SPLASH_CONFIRM_STR)
-            msg.setStandardButtons(btn_yes)
-            yippee = msg.button(btn_yes)
-            yippee.setText('Yippee!')
-            msg.exec()
-        elif response == btn_no:
-            confirmation = QMessageBox.warning(None, "WARNING!", SPLASH_WARNING_STR, btn_yes | btn_no)
-            if confirmation == btn_no:
-                exit(0)
-        self.show()
+        # btn_yes = QMessageBox.StandardButton.Yes
+        # btn_no = QMessageBox.StandardButton.No
+        # response = QMessageBox.warning(None, "Important!", SPLASH_INITIAL_STR, btn_yes | btn_no)
+        # if response == btn_yes:
+        #     #ugh, all this because I wanted to add silly text...
+        #     msg = QMessageBox()
+        #     msg.setIcon(QMessageBox.Icon.Information)
+        #     msg.setWindowTitle("Ready to go!")
+        #     msg.setText(SPLASH_CONFIRM_STR)
+        #     msg.setStandardButtons(btn_yes)
+        #     yippee = msg.button(btn_yes)
+        #     yippee.setText('Yippee!')
+        #     msg.exec()
+        # elif response == btn_no:
+        #     confirmation = QMessageBox.warning(None, "WARNING!", SPLASH_WARNING_STR, btn_yes | btn_no)
+        #     if confirmation == btn_no:
+        #         exit(0)
+        # self.show()
     
-    def updateTab(self, idx):
+    def updateTab(self, idx: int):
         """
         Convenience function to trigger a function when a tab is loaded.
         """
         if idx == 2: #Tab 3
-            self.dbWritePanel.updateReadouts()
+            self.dbExportPanel.updateReadouts()
         else:
             pass
+    
+    def unlockExport(self, ready: bool):
+        """
+        Convenience function to trigger a lock/unlock on the export tab. 
+        """
+        self.dbExportPanel.setExportState(ready)
 
 
 class VoltexTakeoutTitledPanel(QGroupBox):
@@ -271,10 +278,16 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
                 self.statsPlaysValue.setText("--")
                 return True
 
-            self.dbLoadStatusValue.setText("Loaded!")
-            self.dbLoadStatusValue.setStyleSheet("color: green")
+            if (profileCount := len(SaveData.getProfiles())) == 0:
+                msg = QMessageBox.warning(None, "Warning!", 
+                        f"Found no users in Asphyxia DB.")
+                self.dbLoadStatusValue.setText("Loaded with errors.")
+                self.dbLoadStatusValue.setStyleSheet("color: red")
+            else:
+                self.dbLoadStatusValue.setText("Loaded!")
+                self.dbLoadStatusValue.setStyleSheet("color: green")
             self.statsKeysValue.setText(str(len(SaveData)))
-            self.statsUsersValue.setText(str(len(SaveData.getProfiles())))
+            self.statsUsersValue.setText(str(profileCount))
             self.statsPlaysValue.setText(str(len(SaveData.getPlayData())))
 
             # self.dbInputDirPath.setText(fp)
@@ -287,7 +300,7 @@ class VoltexTakeoutDBLoadTray(QGridLayout):
         else:
             return True
         finally:
-            self.parent().parent().parent().parent().setTabEnabled(2, importReady())
+            self.parent().parent().parent().parent().parent().parent().unlockExport(exportReady())
     
     def getSaveData(self, button: QPushButton):
         return
@@ -341,10 +354,10 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
         self.addWidget(self.csvLoadStatusLabel, 1, 0, 2, 1)
         self.addWidget(self.csvLoadStatusValue, 1, 1, 2, 1)
 
-        self.addWidget(self.statsSongsLabel, 1, 2)
-        self.addWidget(self.statsSongsValue, 1, 3)
-        self.addWidget(self.statsErrorsLabel, 2, 2)
-        self.addWidget(self.statsErrorsValue, 2, 3)
+        self.addWidget(self.statsSongsLabel, 0, 2)
+        self.addWidget(self.statsSongsValue, 0, 3)
+        self.addWidget(self.statsErrorsLabel, 1, 2)
+        self.addWidget(self.statsErrorsValue, 1, 3)
         
         self.setContentsMargins(8, 16, 8, 16) 
 
@@ -402,7 +415,9 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
                 # Some songs weren't found
                 unknownSongList = " ".join((f"<li>{song}" for song in unknownSongs))
                 msg = QMessageBox.warning(None, "Warning!", 
-                        f"<b>{unknownSongCount} songs were unknown:</b><ul>{unknownSongList}</ul>")
+                        f"<b>{unknownSongCount} songs were unknown:</b><ul>{unknownSongList}</ul>"+
+                        "voltex-takeout's song data may be out of date or incomplete.<br>"+
+                        f"If these songs are legit, please create an issue on <a href='{GH_ISSUES_LINK}'>GitHub.</a>")
                 self.csvLoadStatusValue.setText("Loaded with errors.")
                 self.csvLoadStatusValue.setStyleSheet("color: red")
             else:
@@ -423,24 +438,23 @@ class VoltexTakeoutCSVLoadTray(QGridLayout):
         else:
             return True
         finally:
-            self.parent().parent().parent().parent().setTabEnabled(2, importReady())
+            self.parent().parent().parent().parent().parent().parent().unlockExport(exportReady())
 
 
 
-class VoltexTakeoutDBWriteTray(QGridLayout):
+class VoltexTakeoutExportTray(QGridLayout):
     def __init__(self, parentWindow: QMainWindow, identifier: str = "DBWriteTray"):
         super().__init__()
 
         self.parentWindow = parentWindow
         self.identifier = identifier
 
-        self.inputDirHint = QLabel("SDVX savedata location:")
-        self.inputDirHint.setFixedWidth(150)
-        self.inputDirPath = QLineEdit()
-        self.inputBrowseButton = QPushButton("Select input folder...")
-        self.inputBrowseButton.clicked.connect(self.openInputFileDialog)
-        # self.defaultInputButton = QPushButton("Use default input folder")
-        # self.defaultInputButton.clicked.connect(self.setDefaultInputDir)
+        self.STATUS_TEXT = {
+            False: "not yet ready",
+            True: "ready! click below"
+        }
+
+        self.exportStatusLabel = QLabel(self.STATUS_TEXT[False])
 
         self.outputDirHint = QLabel("Place output folders in:")
         self.outputDirHint.setFixedWidth(150)
@@ -450,31 +464,35 @@ class VoltexTakeoutDBWriteTray(QGridLayout):
         # self.defaultOutputButton = QPushButton("Use vanilla output folder")
         # self.defaultOutputButton.clicked.connect(self.setDefaultOutputDir)
 
-        self.defaultHybridButton = QPushButton("Autoset output")
-        self.defaultHybridButton.clicked.connect(self.setDefaultInputDir)
-        self.defaultHybridButton.clicked.connect(self.setDefaultOutputDir)
+        # self.defaultHybridButton = QPushButton("Autoset output")
+        # self.defaultHybridButton.clicked.connect(self.setDefaultInputDir)
+        # self.defaultHybridButton.clicked.connect(self.setDefaultOutputDir)
         
-        self.unpackButton = QPushButton("Go!")
-        self.unpackButton.setFixedSize(189, 121)
-        self.unpackButton.clicked.connect(lambda:self.unpackTargetDir(self.unpackButton))
+        self.exportButton = QPushButton("Export database...")
+        self.exportButton.setFixedHeight(50)
+        self.exportButton.clicked.connect(lambda:self.exportDatabase(self.exportButton))
         #print(f"Unpack - H: {self.unpackButton.height()}, W: {self.unpackButton.width()}")
 
-        self.addWidget(self.inputDirHint, 0, 0)
-        self.addWidget(self.outputDirHint, 1, 0)
-        self.addWidget(self.inputDirPath, 0, 1, 1, 2)
-        self.addWidget(self.outputDirPath, 1, 1, 1, 2)
+        self.addWidget(self.exportStatusLabel, 0, 0)
 
-        self.addWidget(self.defaultHybridButton, 2, 0, 1, 4)
+        # self.addWidget(self.inputDirHint, 0, 0)
+        # self.addWidget(self.outputDirHint, 0, 0)
+        # self.addWidget(self.inputDirPath, 0, 1, 1, 2)
+        # self.addWidget(self.outputDirPath, 0, 1, 1, 2)
+
+        # self.addWidget(self.defaultHybridButton, 2, 0, 1, 4)
         # self.addWidget(self.defaultInputButton, 3, 0, 1, 2)
         # self.addWidget(self.defaultOutputButton, 3, 2, 1, 2)
         
-        self.addWidget(self.inputBrowseButton, 0, 3)
-        self.addWidget(self.outputBrowseButton, 1, 3)
+        # self.addWidget(self.inputBrowseButton, 0, 3)
+        # self.addWidget(self.outputBrowseButton, 0, 3)
 
-        self.addWidget(self.unpackButton, 0, 4, 3, 1)
-        self.unpackButton.setMaximumHeight(999)
+        self.addWidget(self.exportButton, 1, 0)
+        # self.exportButton.setMaximumHeight(999)
 
         self.setContentsMargins(8, 16, 8, 16)
+
+        self.setExportState(False)
     
     def updateReadouts(self):
         """
@@ -492,6 +510,12 @@ class VoltexTakeoutDBWriteTray(QGridLayout):
         #     return False
         # else:
         #     return True
+    
+    def setExportState(self, state: bool):
+        self.exportStatusLabel.setText(self.STATUS_TEXT[state])
+        # self.outputBrowseButton.setEnabled(state)
+        self.exportButton.setEnabled(state)
+        # self.outputDirPath.setEnabled(state)
 
     def openInputFileDialog(self):
         dir = QFileDialog.getExistingDirectory(
@@ -536,7 +560,7 @@ class VoltexTakeoutDBWriteTray(QGridLayout):
     def handleUnpackResult(self, result: "ThreadResult"):
         msg = result.messageType(None, result.title, result.text)
     
-    def unpackTargetDir(self, button: QPushButton):
+    def exportDatabase(self, button: QPushButton):
         sourceDir = self.inputDirPath.text()
         destinationDir = self.outputDirPath.text()
 
