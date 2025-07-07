@@ -48,7 +48,7 @@ class SaveData:
             for idx, line in enumerate(file):
                 try:
                     line = line.strip()
-                    print(f"Line #{idx}: {str(line)}")
+                    # print(f"Line #{idx}: {str(line)}")
                     if line is None or line == "":
                         print("Line is None!!")
                         continue
@@ -95,6 +95,7 @@ class SaveData:
     def __add__(self, newKeys: list[dict]) -> None:
         """
         Convenience method for addKeys.
+        #TODO: Broken lol
 
         Args:
             newKeys: The list of play data keys to append. (Generate using ArcadeData.generateKeys().)
@@ -113,15 +114,16 @@ class SaveData:
 
         # Convert the keys into strings, in the format Asphyxia wants
         entries = []
+        # for key in sorted(self.keys, key=lambda x: x.get("createdAt", {}).get("$$date", 9999999999999999)): #just sort all keys without a date to the bottom
         for key in self.keys:
-            entry = str(key)
+            entry = json.dumps(key)
             entry = entry.replace(" ", "") #remove spaces
             entry = entry.replace("'", '"') #use double quotes instead of single
             entries.append(entry)
-            # print(f"Added record: {row['title']} [{row['難易度']}] - {key['score']} ({row['スコアグレード']})")
         
-        with open(fp, 'a') as file:
-            file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
+        with open(fp, 'w') as file:
+            #no newline, we only write to blank files in this method
+            # file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
             file.write("\n".join(entries))
 
     def _writeKeys(self, keys: list[dict], backup_fp: str|Path|None = None) -> None:
@@ -159,6 +161,7 @@ class SaveData:
         with open(source_fp, 'a') as file:
             file.write("\n") #MUST add a newline after the last key in the file!! otherwise, the first key will be corrupt
             file.write("\n".join(entries))
+
 
 class ArcadeData:
     def __init__(self, fp: str|Path):
@@ -248,6 +251,16 @@ class ArcadeData:
         songIsUnknown = self.df["mID"] == -1
         return [x[0] for x in self.df.loc[songIsUnknown, ['title']].values]
 
+    def getPlayedPairs(self):
+        """
+        Gets a list of all mID-difficulty pairs existing in the save file.
+        Previously manually used the following line to remove all keys for data about to be imported:
+            saveData.keys = [key for key in saveData.keys if key.get("collection") != "music" or [key.get("mid"), key.get("type") not in playedPairs]
+        """
+        played = self.df.loc[:, ["mID", "難易度"]]
+        playedPairs = [(x[0], DIFFICULTY[x[1]]) for x in played.values]
+        return playedPairs
+
 GRADE = {
     "D": 1,
     "C": 2,
@@ -273,12 +286,12 @@ DIFFICULTY = {
     "NOVICE": 0,
     "ADVANCED": 1,
     "EXHAUST": 2,
-    "MAXIMUM": 3, #NOTE: all "apex" difficulties are 3
     "INFINITE": 3,
     "GRAVITY": 3,
     "HEAVENLY": 3,
     "VIVID": 3,
-    "EXCEED": 3
+    "EXCEED": 3,
+    "MAXIMUM": 4, #NOTE: all "apex" difficulties are 3 EXCEPT for maximum.
 }
 
 def getSaveDataPath(fp: str|Path, dbName: str = "sdvx@asphyxia.db") -> Path|None:
